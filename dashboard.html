@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetSage AI — Diagnosis Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#0A0F1C;
+    --panel:#111A2E;
+    --panel-alt:#15213A;
+    --line:#243256;
+    --line-soft:#1B2740;
+    --paper:#EAF0FB;
+    --mist:#8496BE;
+    --mist-dim:#5C6D93;
+
+    --teal:#34D6A8;
+    --blue:#5B9CFF;
+    --violet:#B98CFF;
+    --gold:#FFC857;
+    --orange:#FF8A5B;
+    --pink:#FF5D73;
+    --cyan:#4FE0E0;
+    --green:#8CE07A;
+
+    --crit:#FF3B5C;
+    --high:#FF8A3D;
+    --med:#F2C14E;
+    --low:#6FE0A8;
+
+    --accepted:#34D6A8;
+    --edited:#F2C14E;
+    --rejected:#FF5D73;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 12% -10%, rgba(52,214,168,0.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(91,156,255,0.08), transparent 55%),
+      var(--ink);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px 80px;}
+
+  /* ---------- header ---------- */
+  header{
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(21,33,58,0.6), transparent);
+  }
+  .header-inner{
+    max-width:1180px;margin:0 auto;padding:22px 28px;
+    display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;
+  }
+  .wordmark{display:flex;align-items:center;gap:12px;}
+  .wordmark .dot{width:10px;height:10px;border-radius:50%;background:var(--teal);box-shadow:0 0 12px var(--teal);}
+  .wordmark .prompt{
+    font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--mist);
+  }
+  .wordmark h1{
+    font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin:0;
+    letter-spacing:-0.01em;
+  }
+  .wordmark h1 span{color:var(--teal);}
+  .header-sub{font-size:13px;color:var(--mist);margin-top:2px;}
+
+  .agreement-pill{
+    display:flex;align-items:center;gap:10px;
+    background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    padding:8px 18px 8px 8px;
+  }
+  .agreement-pill .ring{
+    width:38px;height:38px;border-radius:50%;
+    background:conic-gradient(var(--teal) calc(var(--pct)*1%), var(--line-soft) 0);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .agreement-pill .ring::after{
+    content:"";width:28px;height:28px;border-radius:50%;background:var(--panel);
+  }
+  .agreement-pill .label{font-size:11px;color:var(--mist);text-transform:uppercase;letter-spacing:0.08em;}
+  .agreement-pill .value{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;}
+
+  /* ---------- hero ---------- */
+  .hero{
+    display:grid;grid-template-columns:220px 1fr;gap:32px;
+    padding:44px 0 36px;align-items:stretch;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--mist-dim);margin:0 0 10px;
+  }
+  .hero h2{
+    font-family:'Space Grotesk',sans-serif;font-size:30px;line-height:1.2;margin:0 0 12px;
+    max-width:560px;
+  }
+  .hero p.lead{color:var(--mist);max-width:520px;font-size:15px;margin:0 0 22px;}
+
+  /* OSI rail — signature element */
+  .osi-rail{
+    display:flex;flex-direction:column-reverse;gap:6px;
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:14px;
+  }
+  .osi-seg{
+    position:relative;border-radius:9px;padding:9px 10px;cursor:pointer;
+    border:1px solid transparent;background:var(--panel-alt);
+    transition:transform .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .osi-seg:hover{transform:translateX(3px);}
+  .osi-seg.active{border-color:var(--seg-color, var(--teal));background:rgba(255,255,255,0.03);}
+  .osi-seg .row1{display:flex;justify-content:space-between;align-items:baseline;}
+  .osi-seg .code{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--seg-color,var(--paper));}
+  .osi-seg .count{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--mist);}
+  .osi-seg .name{font-size:11px;color:var(--mist);margin-top:1px;}
+  .osi-seg .bar{height:3px;border-radius:2px;background:var(--line-soft);margin-top:7px;overflow:hidden;}
+  .osi-seg .bar > span{display:block;height:100%;background:var(--seg-color,var(--teal));border-radius:2px;}
+  .osi-rail-caption{font-size:10px;color:var(--mist-dim);text-align:center;margin-top:8px;letter-spacing:0.04em;}
+
+  /* stat cards */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .stat-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px 18px 16px;
+  }
+  .stat-card .num{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:700;}
+  .stat-card .num small{font-size:16px;font-weight:600;color:var(--mist);}
+  .stat-card .lbl{font-size:12px;color:var(--mist);margin-top:4px;}
+  .stat-card.accent-teal .num{color:var(--teal);}
+  .stat-card.accent-gold .num{color:var(--gold);}
+  .stat-card.accent-pink .num{color:var(--pink);}
+  .stat-card.accent-blue .num{color:var(--blue);}
+  .stat-status-bar{display:flex;height:8px;border-radius:5px;overflow:hidden;margin-top:12px;}
+  .stat-status-bar span{height:100%;}
+  .stat-legend{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
+  .stat-legend .item{font-size:11px;color:var(--mist);display:flex;align-items:center;gap:5px;}
+  .stat-legend .sw{width:8px;height:8px;border-radius:2px;}
+
+  /* ---------- sections ---------- */
+  section{padding:30px 0;border-top:1px solid var(--line-soft);}
+  .section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+  .section-head h3{font-family:'Space Grotesk',sans-serif;font-size:19px;margin:0;}
+  .section-head p{color:var(--mist);font-size:13px;margin:4px 0 0;}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;}
+  .grid-2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
+
+  .cat-bars{display:flex;flex-direction:column;gap:12px;}
+  .cat-bar-row{display:grid;grid-template-columns:120px 1fr 34px;align-items:center;gap:10px;}
+  .cat-bar-row .cname{font-size:13px;color:var(--paper);font-weight:500;}
+  .cat-bar-track{height:12px;background:var(--panel-alt);border-radius:6px;overflow:hidden;border:1px solid var(--line-soft);}
+  .cat-bar-fill{height:100%;border-radius:6px;}
+  .cat-bar-row .cnum{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--mist);text-align:right;}
+
+  .chart-box{position:relative;height:230px;}
+  .donut-wrap{display:flex;align-items:center;gap:18px;}
+  .donut-legend{display:flex;flex-direction:column;gap:8px;font-size:12.5px;}
+  .donut-legend .item{display:flex;align-items:center;gap:8px;}
+  .donut-legend .sw{width:10px;height:10px;border-radius:3px;flex:none;}
+  .donut-legend .n{color:var(--mist);margin-left:auto;font-family:'JetBrains Mono',monospace;}
+
+  /* responsible AI callout */
+  .callout{
+    border:1px solid rgba(255,93,115,0.35);
+    background:linear-gradient(180deg, rgba(255,93,115,0.08), rgba(255,93,115,0.02));
+    border-radius:16px;padding:20px 22px;
+  }
+  .callout .tag{
+    display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;
+    font-size:11px;letter-spacing:0.08em;color:var(--pink);text-transform:uppercase;
+    background:rgba(255,93,115,0.12);border:1px solid rgba(255,93,115,0.3);
+    padding:4px 10px;border-radius:999px;margin-bottom:10px;
+  }
+  .callout h4{font-family:'Space Grotesk',sans-serif;font-size:16px;margin:0 0 8px;}
+  .callout p{color:var(--mist);font-size:13.5px;margin:0 0 4px;max-width:760px;}
+  .callout .term{
+    margin-top:12px;background:var(--ink);border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.7;
+  }
+  .callout .term .k{color:var(--mist-dim);}
+  .callout .term .ai{color:var(--pink);}
+  .callout .term .human{color:var(--teal);}
+
+  /* filters */
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+  .filters select, .filters input{
+    background:var(--panel-alt);border:1px solid var(--line);color:var(--paper);
+    border-radius:9px;padding:8px 12px;font-size:13px;font-family:'Inter',sans-serif;
+  }
+  .filters input{min-width:220px;}
+  .filters select:focus, .filters input:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .filters .count{margin-left:auto;font-size:12px;color:var(--mist);font-family:'JetBrains Mono',monospace;}
+
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;
+    color:var(--mist-dim);padding:8px 10px;border-bottom:1px solid var(--line);
+  }
+  tbody tr.case-row{cursor:pointer;border-bottom:1px solid var(--line-soft);}
+  tbody tr.case-row:hover{background:rgba(255,255,255,0.02);}
+  tbody td{padding:10px 10px;font-size:13px;vertical-align:middle;}
+  td.cid{font-family:'JetBrains Mono',monospace;color:var(--mist);}
+  .chip{
+    display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;
+    border:1px solid transparent;
+  }
+  .chip-cat{background:rgba(255,255,255,0.05);}
+  .chip-sev-Critical{background:rgba(255,59,92,0.14);color:var(--crit);border-color:rgba(255,59,92,0.35);}
+  .chip-sev-High{background:rgba(255,138,61,0.14);color:var(--high);border-color:rgba(255,138,61,0.35);}
+  .chip-sev-Medium{background:rgba(242,193,78,0.14);color:var(--med);border-color:rgba(242,193,78,0.35);}
+  .chip-sev-Low{background:rgba(111,224,168,0.14);color:var(--low);border-color:rgba(111,224,168,0.35);}
+  .chip-status-Accepted{background:rgba(52,214,168,0.14);color:var(--accepted);border-color:rgba(52,214,168,0.35);}
+  .chip-status-Edited{background:rgba(242,193,78,0.14);color:var(--edited);border-color:rgba(242,193,78,0.35);}
+  .chip-status-Rejected{background:rgba(255,93,115,0.14);color:var(--rejected);border-color:rgba(255,93,115,0.35);}
+
+  tr.detail-row td{padding:0;}
+  .detail-panel{
+    background:var(--ink);border-top:1px dashed var(--line);border-bottom:1px solid var(--line-soft);
+    padding:16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px;
+  }
+  .detail-panel .block h5{
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;
+    letter-spacing:0.08em;color:var(--mist-dim);margin:0 0 6px;
+  }
+  .detail-panel .block p{margin:0 0 10px;font-size:13px;color:var(--paper);}
+  .detail-panel .evidence{
+    font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--teal);
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;
+  }
+  .detail-panel .notes{font-size:12.5px;color:var(--mist);}
+
+  footer{
+    text-align:center;color:var(--mist-dim);font-size:12px;padding:30px 0 10px;
+    font-family:'JetBrains Mono',monospace;
+  }
+
+  @media (max-width:820px){
+    .hero{grid-template-columns:1fr;}
+    .osi-rail{flex-direction:row;overflow-x:auto;}
+    .osi-seg{min-width:110px;}
+    .stat-grid{grid-template-columns:repeat(2,1fr);}
+    .grid-2{grid-template-columns:1fr;}
+    .detail-panel{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div>
+      <div class="wordmark">
+        <span class="dot"></span>
+        <h1>Net<span>Sage</span> AI</h1>
+      </div>
+      <div class="wordmark prompt">netsage@lab:~$ diagnose --review-required</div>
+    </div>
+    <div class="agreement-pill">
+      <div class="ring" style="--pct:81.2"></div>
+      <div>
+        <div class="label">AI / human agreement</div>
+        <div class="value" id="agreementValue">—</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <div class="osi-rail" id="osiRail"></div>
+      <div class="osi-rail-caption">click a layer to filter cases</div>
+    </div>
+    <div>
+      <p class="eyebrow">Applied AI + Network Troubleshooting</p>
+      <h2>Every AI diagnosis waits for a human before it becomes a fix.</h2>
+      <p class="lead">NetSage AI reads symptoms and show-command evidence from Packet Tracer labs, proposes a root cause, OSI layer, confidence, next command and fix — then hands it to a reviewer who accepts, edits, or rejects it. Nothing reaches a junior engineer unreviewed.</p>
+      <div class="stat-grid" id="statGrid"></div>
+    </div>
+  </div>
+
+  <section id="themeSection">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">01 · Case coverage</p>
+        <h3>Issue themes across the lab</h3>
+        <p>32 cases spread evenly across the eight fault families instructors asked for.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="cat-bars" id="catBars"></div>
+    </div>
+  </section>
+
+  <section id="agreementSection">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">02 · Reviewer outcomes</p>
+        <h3>Severity mix &amp; AI vs. human agreement</h3>
+        <p>Every case is scored by severity and every AI answer gets a review verdict.</p>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="chart-box"><canvas id="severityChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="donut-wrap">
+          <div class="chart-box" style="width:170px;height:170px;flex:none;"><canvas id="statusChart"></canvas></div>
+          <div class="donut-legend" id="statusLegend"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="raiSection">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">03 · Responsible AI</p>
+        <h3>When the AI was wrong, and why</h3>
+        <p>Six cases required a human correction. The most serious one is a security catch — the exact reason this workflow never auto-applies a fix.</p>
+      </div>
+    </div>
+    <div class="callout">
+      <span class="tag">● flagged case — C030</span>
+      <h4>Guest Wi-Fi reaching internal servers, misdiagnosed as a channel problem</h4>
+      <p>The AI attributed dropped guest sessions to co-channel interference. The real fault was a missing guest VLAN, letting guest traffic fall onto the internal network — a security-boundary failure a performance fix would never have caught.</p>
+      <div class="term">
+        <div><span class="k">ai_root_cause:</span> <span class="ai">"Wireless channel overlap causing dropped guest sessions"</span></div>
+        <div><span class="k">human_verdict:</span> <span class="human">REJECTED</span></div>
+        <div><span class="k">corrected_cause:</span> <span class="human">"Guest VLAN was never created/trunked — guest traffic falls back onto the native VLAN"</span></div>
+      </div>
+      <p style="margin-top:12px;">See <code class="mono">responsible_ai_log.md</code> for all six corrected cases (C003, C007, C012, C020, C024, C030) with full before/after reasoning.</p>
+    </div>
+  </section>
+
+  <section id="explorerSection">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">04 · Case explorer</p>
+        <h3>Browse all 32 cases</h3>
+        <p>Filter by category, severity, OSI layer or review status. Click a row for the full AI answer and reviewer notes.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="filters">
+        <input type="text" id="searchInput" placeholder="Search symptom or case ID…">
+        <select id="catFilter"><option value="">All categories</option></select>
+        <select id="sevFilter"><option value="">All severities</option></select>
+        <select id="layerFilter"><option value="">All OSI layers</option></select>
+        <select id="statusFilter"><option value="">All review status</option></select>
+        <span class="count" id="resultCount"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Case</th><th>Category</th><th>Symptom</th><th>Layer</th><th>Severity</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="caseTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>netsage-ai · packet-tracer-lab-review · human-in-the-loop always on</footer>
+
+<script>
+const DATA = {"total_cases": 32, "agreement_rate": 81.2, "by_category": {"VLAN": 4, "Gateway": 4, "DHCP": 4, "DNS": 4, "Routing": 4, "ACL": 4, "NAT": 4, "Wireless": 4}, "by_severity": {"Medium": 10, "High": 15, "Critical": 4, "Low": 3}, "by_layer": {"L1": 1, "L2": 7, "L3": 18, "L4": 3, "L7": 3}, "by_status": {"Accepted": 26, "Edited": 4, "Rejected": 2}, "severity_by_category": {"VLAN": {"Medium": 2, "High": 2}, "Gateway": {"Medium": 2, "Critical": 1, "High": 1}, "DHCP": {"Medium": 2, "High": 2}, "DNS": {"Medium": 1, "High": 1, "Low": 2}, "Routing": {"High": 3, "Medium": 1}, "ACL": {"Critical": 1, "High": 3}, "NAT": {"Critical": 1, "High": 2, "Medium": 1}, "Wireless": {"Low": 1, "Critical": 1, "Medium": 1, "High": 1}}, "corrected_count": 6, "cases": [{"case_id": "C001", "category": "VLAN", "symptom": "PC1 (VLAN 10) cannot ping PC2, both on switch SW1, same subnet.", "expected_fault": "Access port assigned to wrong VLAN (Fa0/3 is in VLAN 20 instead of VLAN 10)", "osi_layer": "L2", "severity": "Medium", "concept_tag": "vlan-port-assignment", "ai_root_cause": "Access port assigned to wrong VLAN (Fa0/3 is in VLAN 20 instead of VLAN 10)", "ai_confidence": "Medium", "next_command": "show vlan brief", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C002", "category": "VLAN", "symptom": "Hosts in VLAN 30 on SW2 cannot reach VLAN 30 hosts on SW1 across the trunk.", "expected_fault": "VLAN 30 not included in the trunk's allowed VLAN list", "osi_layer": "L2", "severity": "High", "concept_tag": "trunk-allowed-vlans", "ai_root_cause": "VLAN 30 not included in the trunk's allowed VLAN list", "ai_confidence": "High", "next_command": "show vlan brief", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C003", "category": "VLAN", "symptom": "CDP native VLAN mismatch warnings on trunk link; occasional VLAN-30 traffic leaking to VLAN 1.", "expected_fault": "Native VLAN mismatch between trunk ends (SW1=1, SW2=99)", "osi_layer": "L2", "severity": "Medium", "concept_tag": "native-vlan-mismatch", "ai_root_cause": "Trunk not carrying VLAN 30 between SW1 and SW2 (allowed-VLAN list issue)", "ai_confidence": "Medium", "next_command": "show vlan brief", "review_status": "Edited", "matches_expected": "No", "reviewer_notes": "AI focused on the allowed-VLAN list and missed the explicit CDP native-VLAN mismatch warning in the evidence. Reviewer corrected root cause to 'native VLAN mismatch' and pointed the fix at matching native VLAN on both trunk ends."}, {"case_id": "C004", "category": "VLAN", "symptom": "Router-on-a-stick sub-interface for VLAN 40 cannot get any ARP replies; PCs in VLAN 40 unreachable.", "expected_fault": "VLAN 40 was never created on the switch (vlan database missing entry)", "osi_layer": "L2", "severity": "High", "concept_tag": "missing-vlan-creation", "ai_root_cause": "VLAN 40 was never created on the switch (vlan database missing entry)", "ai_confidence": "High", "next_command": "show vlan brief", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C005", "category": "Gateway", "symptom": "PC1 gets a valid IP via DHCP but cannot reach any host outside its own subnet.", "expected_fault": "PC1 configured with wrong default gateway (192.168.1.100 instead of .1)", "osi_layer": "L3", "severity": "Medium", "concept_tag": "wrong-default-gateway", "ai_root_cause": "PC1 configured with wrong default gateway (192.168.1.100 instead of .1)", "ai_confidence": "Medium", "next_command": "show ip interface brief", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C006", "category": "Gateway", "symptom": "All PCs in VLAN 20 lost gateway connectivity at the same time; gateway ping fails from every host.", "expected_fault": "Router sub-interface for VLAN 20 is administratively shut down", "osi_layer": "L3", "severity": "Critical", "concept_tag": "gateway-interface-down", "ai_root_cause": "Router sub-interface for VLAN 20 is administratively shut down", "ai_confidence": "High", "next_command": "show ip interface brief", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C007", "category": "Gateway", "symptom": "PC3 cannot ping its gateway even though the interface shows up/up on the router.", "expected_fault": "Typo: PC3's configured gateway (.254) does not match the router's actual sub-interface IP (.1)", "osi_layer": "L3", "severity": "Medium", "concept_tag": "gateway-ip-mismatch", "ai_root_cause": "DHCP server assigned an incorrect gateway option to PC3", "ai_confidence": "Low", "next_command": "show ip interface brief", "review_status": "Edited", "matches_expected": "No", "reviewer_notes": "PC3's gateway was statically set, not DHCP-assigned, so the AI's DHCP theory was never testable against the evidence. Reviewer corrected the root cause to a manual gateway typo (.254 vs the router's real .1) after checking PC3's config mode."}, {"case_id": "C008", "category": "Gateway", "symptom": "Intermittent gateway loss reported by two PCs; both show the same MAC in ARP for the gateway IP.", "expected_fault": "Duplicate IP address: PC5 was statically configured with the router's gateway address", "osi_layer": "L3", "severity": "High", "concept_tag": "duplicate-ip-gateway", "ai_root_cause": "Duplicate IP address: PC5 was statically configured with the router's gateway address", "ai_confidence": "High", "next_command": "show ip interface brief", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C009", "category": "DHCP", "symptom": "New PCs joining VLAN 10 fail to obtain an IP address; existing PCs are fine.", "expected_fault": "DHCP pool for VLAN 10 is exhausted (no addresses available)", "osi_layer": "L3", "severity": "Medium", "concept_tag": "dhcp-pool-exhausted", "ai_root_cause": "DHCP pool for VLAN 10 is exhausted (no addresses available)", "ai_confidence": "Medium", "next_command": "show ip dhcp pool", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C010", "category": "DHCP", "symptom": "PCs in VLAN 20 receive no IP address at all; DHCP server lives in VLAN 1 on R1.", "expected_fault": "Missing 'ip helper-address' on the VLAN 20 sub-interface to relay DHCP broadcasts", "osi_layer": "L3", "severity": "High", "concept_tag": "missing-dhcp-relay", "ai_root_cause": "Missing 'ip helper-address' on the VLAN 20 sub-interface to relay DHCP broadcasts", "ai_confidence": "High", "next_command": "show ip dhcp pool", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C011", "category": "DHCP", "symptom": "PCs in VLAN 30 receive IP addresses from the wrong subnet (192.168.99.x instead of 192.168.30.x).", "expected_fault": "DHCP pool VLAN30 is configured with the wrong network statement", "osi_layer": "L3", "severity": "Medium", "concept_tag": "wrong-dhcp-pool-network", "ai_root_cause": "DHCP pool VLAN30 is configured with the wrong network statement", "ai_confidence": "Medium", "next_command": "show ip dhcp pool", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C012", "category": "DHCP", "symptom": "Two devices intermittently report an IP conflict with the router's own gateway address.", "expected_fault": "DHCP excluded-address range does not include the gateway .1, so it gets leased out to a client", "osi_layer": "L3", "severity": "High", "concept_tag": "dhcp-exclude-range-error", "ai_root_cause": "DHCP pool for VLAN 10 is exhausted (no addresses available)", "ai_confidence": "Medium", "next_command": "show ip dhcp pool", "review_status": "Edited", "matches_expected": "No", "reviewer_notes": "AI pattern-matched this to the more common 'pool exhausted' case (C009) instead of reading the actual excluded-address range in the evidence. Reviewer rejected the pool-exhaustion theory and corrected it to a missing gateway exclusion, which is a more serious IP-conflict risk, not just a capacity issue."}, {"case_id": "C013", "category": "DNS", "symptom": "PCs can ping the file server by IP but 'ping server1.local' fails with 'Unknown host'.", "expected_fault": "DHCP option 6 (DNS server) is pointing at the wrong host IP", "osi_layer": "L7", "severity": "Medium", "concept_tag": "wrong-dns-server-ip", "ai_root_cause": "DHCP option 6 (DNS server) is pointing at the wrong host IP", "ai_confidence": "Medium", "next_command": "show access-lists", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C014", "category": "DNS", "symptom": "Name resolution fails intermittently; DNS server itself is reachable by ping but not by name queries.", "expected_fault": "ACL 101 blocks UDP/53 (DNS) traffic before any permit statement is reached", "osi_layer": "L4", "severity": "High", "concept_tag": "acl-blocking-dns", "ai_root_cause": "ACL 101 blocks UDP/53 (DNS) traffic before any permit statement is reached", "ai_confidence": "High", "next_command": "show access-lists", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C015", "category": "DNS", "symptom": "Router-based DNS lookups fail for 'server1' when tested from the router itself; 'ip domain-lookup' is enabled.", "expected_fault": "Missing 'ip name-server <dns-ip>' statement on the router", "osi_layer": "L7", "severity": "Low", "concept_tag": "missing-name-server-statement", "ai_root_cause": "Missing 'ip name-server <dns-ip>' statement on the router", "ai_confidence": "Medium", "next_command": "show access-lists", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C016", "category": "DNS", "symptom": "PC4 cannot resolve 'server1.local' even though DNS server config and reachability are correct for all other PCs.", "expected_fault": "PC4 has a stale statically-configured DNS entry left over from a previous network", "osi_layer": "L7", "severity": "Low", "concept_tag": "stale-client-dns-config", "ai_root_cause": "PC4 has a stale statically-configured DNS entry left over from a previous network", "ai_confidence": "Medium", "next_command": "show access-lists", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C017", "category": "Routing", "symptom": "VLAN 10 hosts cannot reach the 172.16.0.0/24 server subnet on R2; R1's routing table has no entry for it.", "expected_fault": "Missing static route on R1 for the 172.16.0.0/24 network via R2", "osi_layer": "L3", "severity": "High", "concept_tag": "missing-static-route", "ai_root_cause": "Missing static route on R1 for the 172.16.0.0/24 network via R2", "ai_confidence": "High", "next_command": "show ip route", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C018", "category": "Routing", "symptom": "R1 and R2 are RIP neighbors, but hosts on R2's LAN cannot be reached from R1's LAN.", "expected_fault": "R2 is not advertising its LAN network (192.168.20.0) into RIP", "osi_layer": "L3", "severity": "Medium", "concept_tag": "rip-missing-network-statement", "ai_root_cause": "R2 is not advertising its LAN network (192.168.20.0) into RIP", "ai_confidence": "Medium", "next_command": "show ip route", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C019", "category": "Routing", "symptom": "OSPF neighbor relationship between R1 and R2 stuck in INIT/EXSTART, no routes exchanged.", "expected_fault": "OSPF area number mismatch between R1 (area 0) and R2 (area 1) on the shared link", "osi_layer": "L3", "severity": "High", "concept_tag": "ospf-area-mismatch", "ai_root_cause": "OSPF area number mismatch between R1 (area 0) and R2 (area 1) on the shared link", "ai_confidence": "High", "next_command": "show ip route", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C020", "category": "Routing", "symptom": "Route to 172.16.20.0/24 exists in the routing table but traffic to it still times out.", "expected_fault": "Recursive routing failure: the next-hop 172.16.10.2 is itself unreachable, so the static route never resolves", "osi_layer": "L3", "severity": "High", "concept_tag": "recursive-routing-failure", "ai_root_cause": "Missing static route on R1 for the 172.16.20.0/24 network", "ai_confidence": "Medium", "next_command": "show ip route", "review_status": "Edited", "matches_expected": "No", "reviewer_notes": "A route to 172.16.20.0/24 does exist in the table, so 'missing route' was not accurate. Reviewer corrected the diagnosis to a recursive routing failure: the route's next-hop is itself unreachable, so it never resolves to an exit interface."}, {"case_id": "C021", "category": "ACL", "symptom": "PCs in 192.168.10.0/24 can no longer reach the 192.168.30.0/24 server subnet after an ACL was added.", "expected_fault": "ACL 110 has no permit statement for the 192.168.10.0/24 subnet, so all traffic is denied", "osi_layer": "L3", "severity": "Critical", "concept_tag": "acl-missing-permit", "ai_root_cause": "ACL 110 has no permit statement for the 192.168.10.0/24 subnet, so all traffic is denied", "ai_confidence": "High", "next_command": "show access-lists", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C022", "category": "ACL", "symptom": "ACL 120 was written to block only outbound Internet traffic from VLAN 40, but it is also blocking VLAN 40's inbound replies.", "expected_fault": "ACL 120 applied in the wrong direction (in instead of out) on the sub-interface", "osi_layer": "L3", "severity": "High", "concept_tag": "acl-wrong-direction", "ai_root_cause": "ACL 120 applied in the wrong direction (in instead of out) on the sub-interface", "ai_confidence": "High", "next_command": "show access-lists", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C023", "category": "ACL", "symptom": "Host 192.168.10.15 should be blocked from the server subnet, but the whole 192.168.10.0/24 subnet lost access, including hosts that should be permitted.", "expected_fault": "ACL statement order denies the entire 192.168.10.0/24 subnet (line 20) instead of only the intended host", "osi_layer": "L3", "severity": "High", "concept_tag": "acl-statement-order", "ai_root_cause": "ACL statement order denies the entire 192.168.10.0/24 subnet (line 20) instead of only the intended host", "ai_confidence": "High", "next_command": "show access-lists", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C024", "category": "ACL", "symptom": "Internal clients can send requests to the web server, but replies never make it back to the clients.", "expected_fault": "ACL 140 is missing a permit for established/return traffic, so reply packets from the server are dropped", "osi_layer": "L4", "severity": "High", "concept_tag": "acl-missing-established-return", "ai_root_cause": "NAT overload not translating return traffic from the web server", "ai_confidence": "Low", "next_command": "show access-lists", "review_status": "Rejected", "matches_expected": "No", "reviewer_notes": "No NAT is involved in this topology at all; the AI pattern-matched 'replies not coming back' to a NAT issue from a similar past case. Reviewer rejected this and identified the real cause in ACL 140, which lacks a permit for established/return traffic."}, {"case_id": "C025", "category": "NAT", "symptom": "All internal PCs can ping each other and the router, but none can reach the simulated Internet server.", "expected_fault": "NAT overload command exists, but the inside/outside interfaces were never marked, so no translation occurs", "osi_layer": "L3", "severity": "Critical", "concept_tag": "nat-interfaces-not-marked", "ai_root_cause": "NAT overload command exists, but the inside/outside interfaces were never marked, so no translation occurs", "ai_confidence": "High", "next_command": "show ip nat translations", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C026", "category": "NAT", "symptom": "Only some internal hosts can reach the Internet server; others get no response at all.", "expected_fault": "NAT's referenced ACL only permits 192.168.10.0/24, leaving 192.168.20.0/24 untranslated", "osi_layer": "L3", "severity": "High", "concept_tag": "nat-acl-incomplete", "ai_root_cause": "NAT's referenced ACL only permits 192.168.10.0/24, leaving 192.168.20.0/24 untranslated", "ai_confidence": "High", "next_command": "show ip nat translations", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C027", "category": "NAT", "symptom": "'show ip nat translations' stays empty even though the NAT and ACL configuration both look correct.", "expected_fault": "Interfaces were never explicitly marked with 'ip nat inside' / 'ip nat outside'", "osi_layer": "L3", "severity": "High", "concept_tag": "nat-interfaces-not-marked", "ai_root_cause": "Interfaces were never explicitly marked with 'ip nat inside' / 'ip nat outside'", "ai_confidence": "High", "next_command": "show ip nat translations", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C028", "category": "NAT", "symptom": "External users cannot reach the internal web server via the public IP on port 80.", "expected_fault": "Static NAT mapping references the wrong internal port (8080) instead of the server's actual port (80)", "osi_layer": "L4", "severity": "Medium", "concept_tag": "static-nat-port-mismatch", "ai_root_cause": "Static NAT mapping references the wrong internal port (8080) instead of the server's actual port (80)", "ai_confidence": "Medium", "next_command": "show ip nat translations", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C029", "category": "Wireless", "symptom": "Laptop cannot associate with the corporate WLAN; repeated authentication failures.", "expected_fault": "Passphrase mismatch between the client (lowercase, missing symbol) and the AP's configured key", "osi_layer": "L2", "severity": "Low", "concept_tag": "wireless-key-mismatch", "ai_root_cause": "Passphrase mismatch between the client (lowercase, missing symbol) and the AP's configured key", "ai_confidence": "Medium", "next_command": "show interface dot11radio0", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C030", "category": "Wireless", "symptom": "Guest Wi-Fi clients can reach internal file servers and printers, which should never happen.", "expected_fault": "Guest VLAN 50 was never created/trunked correctly, so guest traffic falls back onto the native/internal VLAN", "osi_layer": "L2", "severity": "Critical", "concept_tag": "guest-vlan-isolation-failure", "ai_root_cause": "Wireless channel overlap causing dropped guest sessions", "ai_confidence": "Low", "next_command": "show interface dot11radio0", "review_status": "Rejected", "matches_expected": "No", "reviewer_notes": "This is a security-relevant misconfiguration (guest traffic reaching internal servers), not a performance issue, and the AI's channel-overlap theory does not explain guest devices reaching internal file servers at all. Reviewer rejected the AI output outright and escalated as a Responsible-AI flag: an AI system should not be trusted to self-certify security-boundary issues without a human check, since a wrong 'root cause' here could leave a real security gap unresolved."}, {"case_id": "C031", "category": "Wireless", "symptom": "Wireless clients near two APs experience high latency and frequent disconnects in the overlap zone.", "expected_fault": "Co-channel interference: both APs are set to the same 2.4GHz channel (6) in overlapping coverage areas", "osi_layer": "L1", "severity": "Medium", "concept_tag": "wireless-channel-overlap", "ai_root_cause": "Co-channel interference: both APs are set to the same 2.4GHz channel (6) in overlapping coverage areas", "ai_confidence": "Medium", "next_command": "show interface dot11radio0", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}, {"case_id": "C032", "category": "Wireless", "symptom": "Wireless clients associate with the AP successfully but never receive an IP address.", "expected_fault": "AP's uplink switch port is set to access mode VLAN 1 instead of trunking VLAN 60 to the DHCP relay router", "osi_layer": "L2", "severity": "High", "concept_tag": "ap-uplink-not-trunked", "ai_root_cause": "AP's uplink switch port is set to access mode VLAN 1 instead of trunking VLAN 60 to the DHCP relay router", "ai_confidence": "High", "next_command": "show interface dot11radio0", "review_status": "Accepted", "matches_expected": "Yes", "reviewer_notes": "AI diagnosis matched the confirmed root cause; evidence correctly cited."}]};
+
+const CATEGORY_COLOR = {
+  VLAN:"#34D6A8", Gateway:"#5B9CFF", DHCP:"#B98CFF", DNS:"#FFC857",
+  Routing:"#FF8A5B", ACL:"#FF5D73", NAT:"#4FE0E0", Wireless:"#8CE07A"
+};
+const SEV_COLOR = {Critical:"#FF3B5C", High:"#FF8A3D", Medium:"#F2C14E", Low:"#6FE0A8"};
+const STATUS_COLOR = {Accepted:"#34D6A8", Edited:"#F2C14E", Rejected:"#FF5D73"};
+const LAYER_INFO = {
+  L7:{name:"Application", color:"#FFC857"},
+  L6:{name:"Presentation", color:"#FF8A5B"},
+  L5:{name:"Session", color:"#B98CFF"},
+  L4:{name:"Transport", color:"#5B9CFF"},
+  L3:{name:"Network", color:"#34D6A8"},
+  L2:{name:"Data Link", color:"#4FE0E0"},
+  L1:{name:"Physical", color:"#8CE07A"},
+};
+
+document.getElementById("agreementValue").textContent = DATA.agreement_rate + "%";
+
+// ---------- OSI rail ----------
+const osiRail = document.getElementById("osiRail");
+const layerOrder = ["L1","L2","L3","L4","L5","L6","L7"];
+const maxLayerCount = Math.max(...Object.values(DATA.by_layer), 1);
+let activeLayer = null;
+
+layerOrder.forEach(code => {
+  const info = LAYER_INFO[code];
+  const count = DATA.by_layer[code] || 0;
+  const seg = document.createElement("div");
+  seg.className = "osi-seg";
+  seg.style.setProperty("--seg-color", info.color);
+  seg.dataset.layer = code;
+  seg.innerHTML = `
+    <div class="row1"><span class="code">${code}</span><span class="count">${count}</span></div>
+    <div class="name">${info.name}</div>
+    <div class="bar"><span style="width:${count ? Math.max(10,(count/maxLayerCount)*100) : 4}%"></span></div>
+  `;
+  seg.addEventListener("click", () => {
+    activeLayer = activeLayer === code ? null : code;
+    document.querySelectorAll(".osi-seg").forEach(s => s.classList.toggle("active", s.dataset.layer === activeLayer));
+    document.getElementById("layerFilter").value = activeLayer || "";
+    renderTable();
+  });
+  osiRail.appendChild(seg);
+});
+
+// ---------- stat cards ----------
+const statGrid = document.getElementById("statGrid");
+statGrid.innerHTML = `
+  <div class="stat-card accent-teal">
+    <div class="num">${DATA.total_cases}</div>
+    <div class="lbl">Total cases logged</div>
+  </div>
+  <div class="stat-card accent-blue">
+    <div class="num">${DATA.agreement_rate}<small>%</small></div>
+    <div class="lbl">AI answers accepted as-is</div>
+  </div>
+  <div class="stat-card accent-pink">
+    <div class="num">${DATA.corrected_count}</div>
+    <div class="lbl">Corrected by a human reviewer</div>
+  </div>
+  <div class="stat-card accent-gold">
+    <div class="num">${Object.keys(DATA.by_category).length}</div>
+    <div class="lbl">Fault families covered</div>
+  </div>
+`;
+
+// ---------- category bars ----------
+const catBars = document.getElementById("catBars");
+const maxCat = Math.max(...Object.values(DATA.by_category));
+Object.entries(DATA.by_category).forEach(([cat,count]) => {
+  const row = document.createElement("div");
+  row.className = "cat-bar-row";
+  row.innerHTML = `
+    <div class="cname">${cat}</div>
+    <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(count/maxCat)*100}%;background:${CATEGORY_COLOR[cat]}"></div></div>
+    <div class="cnum">${count}</div>
+  `;
+  catBars.appendChild(row);
+});
+
+// ---------- severity chart ----------
+const sevLabels = ["Critical","High","Medium","Low"];
+new Chart(document.getElementById("severityChart"), {
+  type:"bar",
+  data:{
+    labels:sevLabels,
+    datasets:[{
+      data:sevLabels.map(s => DATA.by_severity[s] || 0),
+      backgroundColor:sevLabels.map(s => SEV_COLOR[s]),
+      borderRadius:6, maxBarThickness:46
+    }]
+  },
+  options:{
+    plugins:{legend:{display:false}, title:{display:false}},
+    scales:{
+      x:{grid:{display:false}, ticks:{color:"#8496BE", font:{family:"Inter", size:12}}},
+      y:{grid:{color:"#1B2740"}, ticks:{color:"#8496BE", stepSize:2}}
+    }
+  }
+});
+
+// ---------- status donut ----------
+const statusLabels = ["Accepted","Edited","Rejected"];
+new Chart(document.getElementById("statusChart"), {
+  type:"doughnut",
+  data:{
+    labels:statusLabels,
+    datasets:[{
+      data:statusLabels.map(s => DATA.by_status[s] || 0),
+      backgroundColor:statusLabels.map(s => STATUS_COLOR[s]),
+      borderColor:"#111A2E", borderWidth:3
+    }]
+  },
+  options:{ cutout:"68%", plugins:{legend:{display:false}} }
+});
+const statusLegend = document.getElementById("statusLegend");
+statusLabels.forEach(s => {
+  const item = document.createElement("div");
+  item.className = "item";
+  item.innerHTML = `<span class="sw" style="background:${STATUS_COLOR[s]}"></span>${s}<span class="n">${DATA.by_status[s]||0}</span>`;
+  statusLegend.appendChild(item);
+});
+
+// ---------- filters ----------
+const catFilter = document.getElementById("catFilter");
+const sevFilter = document.getElementById("sevFilter");
+const layerFilter = document.getElementById("layerFilter");
+const statusFilter = document.getElementById("statusFilter");
+const searchInput = document.getElementById("searchInput");
+
+Object.keys(DATA.by_category).forEach(c => catFilter.insertAdjacentHTML("beforeend", `<option value="${c}">${c}</option>`));
+["Critical","High","Medium","Low"].forEach(s => sevFilter.insertAdjacentHTML("beforeend", `<option value="${s}">${s}</option>`));
+layerOrder.forEach(l => { if(DATA.by_layer[l]) layerFilter.insertAdjacentHTML("beforeend", `<option value="${l}">${l} — ${LAYER_INFO[l].name}</option>`); });
+["Accepted","Edited","Rejected"].forEach(s => statusFilter.insertAdjacentHTML("beforeend", `<option value="${s}">${s}</option>`));
+
+[catFilter, sevFilter, layerFilter, statusFilter, searchInput].forEach(el => {
+  el.addEventListener("input", () => {
+    if(el === layerFilter){ activeLayer = layerFilter.value || null;
+      document.querySelectorAll(".osi-seg").forEach(s => s.classList.toggle("active", s.dataset.layer === activeLayer));
+    }
+    renderTable();
+  });
+});
+
+// ---------- table ----------
+const tbody = document.getElementById("caseTableBody");
+let openId = null;
+
+function renderTable(){
+  const q = searchInput.value.trim().toLowerCase();
+  const filtered = DATA.cases.filter(c =>
+    (!catFilter.value || c.category === catFilter.value) &&
+    (!sevFilter.value || c.severity === sevFilter.value) &&
+    (!layerFilter.value || c.osi_layer === layerFilter.value) &&
+    (!statusFilter.value || c.review_status === statusFilter.value) &&
+    (!q || c.case_id.toLowerCase().includes(q) || c.symptom.toLowerCase().includes(q))
+  );
+  document.getElementById("resultCount").textContent = `${filtered.length} / ${DATA.cases.length} cases`;
+
+  tbody.innerHTML = "";
+  filtered.forEach(c => {
+    const row = document.createElement("tr");
+    row.className = "case-row";
+    row.innerHTML = `
+      <td class="cid">${c.case_id}</td>
+      <td><span class="chip chip-cat" style="color:${CATEGORY_COLOR[c.category]};border-color:${CATEGORY_COLOR[c.category]}55">${c.category}</span></td>
+      <td>${c.symptom}</td>
+      <td class="mono">${c.osi_layer}</td>
+      <td><span class="chip chip-sev-${c.severity}">${c.severity}</span></td>
+      <td><span class="chip chip-status-${c.review_status}">${c.review_status}</span></td>
+    `;
+    row.addEventListener("click", () => {
+      openId = openId === c.case_id ? null : c.case_id;
+      renderTable();
+    });
+    tbody.appendChild(row);
+
+    if(openId === c.case_id){
+      const detail = document.createElement("tr");
+      detail.className = "detail-row";
+      detail.innerHTML = `<td colspan="6">
+        <div class="detail-panel">
+          <div class="block">
+            <h5>Expected fault</h5>
+            <p>${c.expected_fault}</p>
+            <h5>AI root cause (confidence: ${c.ai_confidence})</h5>
+            <p>${c.ai_root_cause}</p>
+            <h5>Suggested next command</h5>
+            <div class="evidence">${c.next_command}</div>
+          </div>
+          <div class="block">
+            <h5>Review verdict</h5>
+            <p><span class="chip chip-status-${c.review_status}">${c.review_status}</span></p>
+            <h5>Reviewer notes</h5>
+            <p class="notes">${c.reviewer_notes}</p>
+          </div>
+        </div>
+      </td>`;
+      tbody.appendChild(detail);
+    }
+  });
+}
+renderTable();
+</script>
+
+</body>
+</html>

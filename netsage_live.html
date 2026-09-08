@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetSage AI — Cisco Troubleshooting Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg1:#1E1B4B; --bg2:#2E2A6B; --bg3:#3E2A7A; --bg4:#123152;
+    --aurora-violet:#8B5CF6; --aurora-cyan:#22D3EE; --aurora-pink:#F472B6; --aurora-amber:#FBBF24;
+    --paper:#F6F4FF; --mist:#C7BEEE; --mist-dim:#8E85C4;
+    --panel-border: rgba(255,255,255,0.16); --panel-border-soft: rgba(255,255,255,0.09);
+    --teal:#2DD4BF; --blue:#60A5FA; --violet:#C084FC; --gold:#FBBF24;
+    --orange:#FB923C; --pink:#FB7185; --cyan:#22D3EE; --lime:#A3E635;
+    --crit:#FB7185; --high:#FB923C; --med:#FBBF24; --low:#4ADE80;
+    --cta1:#F472B6; --cta2:#FB923C;
+    --accepted:#2DD4BF; --override:#FBBF24; --rejected:#FB7185;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:linear-gradient(160deg, var(--bg1), var(--bg2) 45%, var(--bg3) 80%, var(--bg4));
+    background-attachment:fixed;
+    color:var(--paper); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; line-height:1.5;
+    min-height:100vh; position:relative;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px 70px;position:relative;z-index:2;}
+  button{font-family:'Inter',sans-serif;cursor:pointer;}
+  ::placeholder{color:var(--mist-dim);}
+
+  /* ---------- live animated backdrop ---------- */
+  .aurora-blob{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0;opacity:0.5;}
+  .blob1{width:560px;height:560px;background:var(--aurora-violet);top:-160px;left:-120px;animation:float1 24s ease-in-out infinite;}
+  .blob2{width:520px;height:520px;background:var(--aurora-cyan);bottom:-180px;right:-140px;animation:float2 28s ease-in-out infinite;}
+  .blob3{width:440px;height:440px;background:var(--aurora-pink);top:26%;right:6%;animation:float3 20s ease-in-out infinite;opacity:0.38;}
+  .blob4{width:400px;height:400px;background:var(--aurora-amber);bottom:8%;left:12%;animation:float4 26s ease-in-out infinite;opacity:0.3;}
+  @keyframes float1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(70px,50px) scale(1.14);}}
+  @keyframes float2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-60px,-40px) scale(1.1);}}
+  @keyframes float3{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-40px,60px) scale(1.2);}}
+  @keyframes float4{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(50px,-30px) scale(1.12);}}
+  #bgCanvas{position:fixed;inset:0;z-index:1;pointer-events:none;}
+  @media (prefers-reduced-motion: reduce){
+    .aurora-blob{animation:none !important;}
+  }
+
+  /* ---------- glass panel system ---------- */
+  .panel{
+    position:relative; overflow:hidden;
+    background:linear-gradient(160deg, rgba(22,16,52,0.62), rgba(34,22,66,0.48));
+    backdrop-filter:blur(20px) saturate(150%); -webkit-backdrop-filter:blur(20px) saturate(150%);
+    border:1px solid var(--panel-border); border-radius:18px; padding:20px;
+    box-shadow:0 18px 44px -18px rgba(10,6,30,0.55);
+    transition:box-shadow .25s ease, transform .25s ease, border-color .25s ease;
+  }
+  .panel::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+    opacity:0.6;
+  }
+  .panel::after{
+    content:"";position:absolute;top:-40%;left:-10%;width:60%;height:140%;
+    background:linear-gradient(120deg, rgba(255,255,255,0.05), transparent 60%);
+    pointer-events:none; transform:rotate(8deg);
+  }
+
+  @keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .tab-panel:not([hidden]){animation:fadeSlideIn .35s ease both;}
+  .result-block{animation:fadeSlideIn .4s ease both;}
+  .result-block:nth-of-type(1){animation-delay:.02s;}
+  .result-block:nth-of-type(2){animation-delay:.08s;}
+  .result-block:nth-of-type(3){animation-delay:.14s;}
+
+  header{
+    border-bottom:1px solid var(--panel-border-soft);
+    background:linear-gradient(180deg, rgba(20,14,46,0.55), rgba(20,14,46,0.2));
+    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    position:sticky; top:0; z-index:10;
+  }
+  .header-inner{max-width:1180px;margin:0 auto;padding:20px 24px 0;position:relative;}
+  .wordmark{display:flex;align-items:center;gap:10px;}
+  .wordmark .dot{width:9px;height:9px;border-radius:50%;background:var(--cyan);box-shadow:0 0 14px var(--cyan);animation:pulseDot 2.4s ease-in-out infinite;}
+  @keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 14px var(--cyan);}50%{opacity:0.55;box-shadow:0 0 4px var(--cyan);}}
+  .wordmark h1{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin:0;letter-spacing:-0.01em;}
+  .wordmark h1 span{background:linear-gradient(90deg, var(--cyan), var(--violet), var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent;background-size:200% auto;animation:gradientShift 6s ease infinite;}
+  @keyframes gradientShift{0%,100%{background-position:0% center;}50%{background-position:100% center;}}
+  .header-sub{font-size:12.5px;color:var(--mist);margin:2px 0 16px 19px;}
+
+  .header-top-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+  .backend-toggle{
+    display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.05);border:1px solid var(--panel-border);
+    color:var(--mist);border-radius:999px;padding:7px 13px 7px 11px;font-size:12px;font-weight:600;margin-top:2px;
+    transition:border-color .2s ease,color .2s ease;
+  }
+  .backend-toggle:hover{border-color:var(--cyan);color:var(--paper);}
+  .backend-toggle svg{width:13px;height:13px;}
+  .backend-dot{width:7px;height:7px;border-radius:50%;background:var(--mist-dim);flex:none;}
+  .backend-dot.connected{background:var(--accepted);box-shadow:0 0 8px var(--accepted);}
+  .backend-dot.error{background:var(--rejected);box-shadow:0 0 8px var(--rejected);}
+
+  .backend-panel{
+    margin:12px 0 14px; padding:14px 16px; border-radius:12px;
+    background:rgba(8,6,24,0.45); border:1px solid var(--panel-border);
+  }
+  .backend-panel-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .backend-panel-row input{flex:1;min-width:220px;font-size:12.5px;}
+  .backend-panel-row .icon-btn{white-space:nowrap;}
+  .backend-status-line{font-size:11.5px;color:var(--mist-dim);margin:9px 0 0;}
+  .backend-status-line.ok{color:var(--accepted);}
+  .backend-status-line.bad{color:var(--rejected);}
+
+  .tabs{display:flex;gap:4px;padding:4px;background:rgba(0,0,0,0.16);border-radius:13px;width:fit-content;margin-bottom:-4px;}
+  .tab-btn{
+    background:none;border:none;color:var(--mist);font-size:13.5px;font-weight:600;
+    padding:9px 15px;border-radius:9px;display:flex;align-items:center;gap:7px;
+    transition:background .2s ease, color .2s ease;
+  }
+  .tab-btn svg{width:15px;height:15px;opacity:0.85;}
+  .tab-btn.active{color:#0B0620;background:linear-gradient(90deg, var(--cyan), var(--violet));box-shadow:0 6px 18px -6px rgba(34,211,238,0.5);}
+  .tab-btn.active svg{opacity:1;}
+  .tab-btn:not(.active):hover{color:var(--paper);background:rgba(255,255,255,0.06);}
+
+  .tab-panel{padding-top:30px;}
+  .tab-panel[hidden]{display:none;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.13em;text-transform:uppercase;color:var(--cyan);margin:0 0 8px;display:flex;align-items:center;gap:7px;}
+  .eyebrow::before{content:"";width:14px;height:2px;border-radius:2px;background:linear-gradient(90deg, var(--cyan), var(--violet));}
+  h2.page-title{font-family:'Space Grotesk',sans-serif;font-size:26px;margin:0 0 6px;letter-spacing:-0.01em;}
+  p.page-sub{color:var(--mist);font-size:13.5px;margin:0 0 26px;max-width:640px;}
+
+  /* ---------- Diagnose tab ---------- */
+  .diagnose-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:18px;align-items:start;}
+  label.field-label{display:block;font-size:12px;color:var(--mist);margin:0 0 6px;font-weight:600;}
+  input[type="text"], textarea, select{
+    width:100%;background:rgba(10,7,28,0.4);border:1px solid var(--panel-border);color:var(--paper);
+    border-radius:10px;padding:11px 13px;font-size:13.5px;font-family:'Inter',sans-serif;
+  }
+  textarea.mono{font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+  textarea{resize:vertical;min-height:140px;}
+  input:focus, textarea:focus, select:focus{outline:2px solid var(--cyan);outline-offset:1px;}
+  input.invalid, textarea.invalid{outline:2px solid var(--pink);}
+  select option{background:#241C50;color:var(--paper);}
+  .form-field{margin-bottom:16px;}
+
+  .run-btn{
+    background:linear-gradient(90deg, var(--cta1), var(--cta2));
+    background-size:180% auto; background-position:0% center;
+    color:#1B1030;border:none;border-radius:11px;padding:13px 20px;font-size:14px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+    box-shadow:0 10px 26px -8px rgba(244,114,182,0.5);
+    transition:background-position .35s ease, transform .18s ease, box-shadow .18s ease;
+  }
+  .run-btn:hover{background-position:100% center;transform:translateY(-1px);box-shadow:0 14px 30px -8px rgba(244,114,182,0.62);}
+  .run-btn:active{transform:translateY(0);}
+  .run-btn:disabled{opacity:0.6;cursor:not-allowed;filter:none;}
+  .run-btn svg{width:16px;height:16px;}
+  .live-note{font-size:11px;color:var(--mist-dim);text-align:center;margin-top:9px;line-height:1.5;}
+
+  .results-panel{min-height:420px;}
+  .empty-state{
+    height:100%;min-height:380px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;color:var(--mist-dim);gap:10px;padding:30px;
+  }
+  .empty-state svg{width:34px;height:34px;opacity:0.6;color:var(--violet);}
+  .empty-state p{margin:0;font-size:13px;max-width:280px;}
+
+  .result-block{margin-bottom:18px;}
+  .result-block h4{
+    font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;
+    color:var(--mist);margin:0 0 9px;display:flex;align-items:center;gap:7px;
+  }
+  .rule-box{
+    border-radius:10px;padding:12px 14px;border:1px solid var(--panel-border);background:rgba(10,7,28,0.35);
+    border-left:3px solid var(--mist-dim);
+  }
+  .rule-box.sev-Critical{border-left-color:var(--crit);}
+  .rule-box.sev-High{border-left-color:var(--high);}
+  .rule-box.sev-Medium{border-left-color:var(--med);}
+  .rule-box .code{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;}
+  .rule-box.sev-Critical .code{color:var(--crit);}
+  .rule-box.sev-High .code{color:var(--high);}
+  .rule-box.sev-Medium .code{color:var(--med);}
+  .rule-box p{margin:5px 0 0;font-size:13px;color:var(--paper);}
+  .rule-box.none{color:var(--mist);font-size:13px;border-left-color:var(--panel-border);}
+
+  .ai-loading{display:flex;align-items:center;gap:10px;color:var(--mist);font-size:13px;padding:6px 0;}
+  .spinner{width:15px;height:15px;border-radius:50%;border:2px solid var(--panel-border);border-top-color:var(--cyan);animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .badge-row{display:flex;gap:22px;margin-bottom:12px;flex-wrap:wrap;}
+  .badge-item .lbl{font-size:11px;color:var(--mist-dim);margin-bottom:3px;}
+  .badge-item .val{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;}
+  .conf-High{color:var(--teal);} .conf-Medium{color:var(--gold);} .conf-Low{color:var(--mist);}
+  .layer-chip{
+    display:inline-block;padding:2px 9px;border-radius:6px;font-family:'JetBrains Mono',monospace;
+    font-size:12px;font-weight:700;background:rgba(96,165,250,0.18);color:var(--blue);border:1px solid rgba(96,165,250,0.4);
+  }
+  .root-cause-text{font-size:14.5px;color:var(--paper);margin:0 0 14px;line-height:1.55;}
+  .evidence-box{
+    font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);
+    background:rgba(8,6,24,0.5);border:1px solid var(--panel-border);border-radius:8px;padding:10px 12px;margin-bottom:12px;
+    white-space:pre-wrap;word-break:break-word;
+  }
+  .cmd-box{
+    font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--gold);
+    background:rgba(8,6,24,0.5);border:1px solid var(--panel-border);border-radius:8px;padding:9px 12px;display:inline-block;
+  }
+  .fix-box{
+    background:rgba(8,6,24,0.5);border:1px solid var(--panel-border);border-radius:8px;padding:12px 14px;
+    font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#B9F3E4;white-space:pre-wrap;line-height:1.6;
+  }
+  .fallback-note{font-size:11.5px;color:var(--mist-dim);margin-top:8px;font-style:italic;}
+
+  .decision-section{border-top:1px solid var(--panel-border-soft);margin-top:20px;padding-top:18px;}
+  .decision-section h4{font-family:'Space Grotesk',sans-serif;font-size:14.5px;margin:0 0 12px;color:var(--paper);}
+  .decision-btns{display:flex;gap:10px;flex-wrap:wrap;}
+  .dbtn{
+    border-radius:9px;padding:10px 15px;font-size:13px;font-weight:600;border:1px solid var(--panel-border);
+    background:rgba(255,255,255,0.05);color:var(--paper);display:flex;align-items:center;gap:7px;
+  }
+  .dbtn svg{width:14px;height:14px;}
+  .dbtn.accept{background:rgba(45,212,191,0.16);border-color:rgba(45,212,191,0.45);color:var(--accepted);}
+  .dbtn.reject{background:rgba(96,165,250,0.13);border-color:rgba(96,165,250,0.4);color:var(--blue);}
+  .dbtn.override{background:rgba(251,191,36,0.16);border-color:rgba(251,191,36,0.45);color:var(--override);}
+  .dbtn:hover{filter:brightness(1.15);transform:translateY(-1px);}
+  .dbtn:disabled{opacity:0.4;cursor:not-allowed;}
+
+  .subform{margin-top:14px;background:rgba(10,7,28,0.4);border:1px solid var(--panel-border);border-radius:10px;padding:14px;}
+  .subform textarea{min-height:80px;}
+  .subform .subform-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end;}
+  .subform-actions button{padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:600;border:1px solid var(--panel-border);}
+  .subform-actions .confirm{background:var(--teal);color:#082821;border:none;}
+  .subform-actions .cancel{background:transparent;color:var(--mist);}
+
+  /* ---------- Explorer tab ---------- */
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+  .filters select, .filters input{width:auto;}
+  .filters input{min-width:230px;}
+  .filters .spacer{margin-left:auto;}
+  .icon-btn{
+    display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.05);border:1px solid var(--panel-border);
+    color:var(--paper);border-radius:9px;padding:9px 14px;font-size:12.5px;font-weight:600;
+  }
+  .icon-btn svg{width:14px;height:14px;}
+  .icon-btn:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-1px);}
+  .icon-btn.ghost{background:transparent;color:var(--mist-dim);}
+
+  table{width:100%;border-collapse:collapse;}
+  thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--mist-dim);padding:8px 10px;border-bottom:1px solid var(--panel-border-soft);}
+  tbody tr{border-bottom:1px solid var(--panel-border-soft);border-left:2px solid transparent;transition:background .18s ease, border-color .18s ease;}
+  tbody tr:hover{background:rgba(255,255,255,0.045);border-left-color:var(--cyan);}
+  tbody td{padding:10px 10px;font-size:12.5px;vertical-align:top;}
+  td.cid{font-family:'JetBrains Mono',monospace;color:var(--mist);white-space:nowrap;}
+  td.trunc{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .src-live{font-size:9.5px;color:var(--cta1);font-family:'JetBrains Mono',monospace;margin-left:6px;}
+
+  .chip{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent;}
+  .chip-Accepted{background:rgba(45,212,191,0.18);color:var(--accepted);border-color:rgba(45,212,191,0.4);}
+  .chip-Manual-Override{background:rgba(251,191,36,0.18);color:var(--override);border-color:rgba(251,191,36,0.4);}
+  .chip-Rejected{background:rgba(251,113,133,0.18);color:var(--rejected);border-color:rgba(251,113,133,0.4);}
+  .chip-cat{background:rgba(255,255,255,0.07);color:var(--paper);}
+
+  .result-count{font-size:11.5px;color:var(--mist);font-family:'JetBrains Mono',monospace;}
+
+  tbody tr.case-row{cursor:pointer;}
+  tr.detail-row td{padding:0;}
+  .detail-panel{
+    background:rgba(6,4,20,0.5); border-top:1px dashed var(--panel-border); border-bottom:1px solid var(--panel-border-soft);
+    padding:16px 18px; display:grid; grid-template-columns:1fr 1fr; gap:18px;
+  }
+  .detail-panel .block h5{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--mist-dim); margin:0 0 6px;
+  }
+  .detail-panel .block p{margin:0 0 12px; font-size:13px; color:var(--paper); line-height:1.55;}
+  .detail-panel .evidence{
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--cyan);
+    background:rgba(8,6,24,0.5); border:1px solid var(--panel-border); border-radius:8px; padding:9px 11px; margin-bottom:12px;
+  }
+  .detail-panel .cmd{
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--gold);
+    background:rgba(8,6,24,0.5); border:1px solid var(--panel-border); border-radius:8px; padding:9px 11px; display:inline-block;
+  }
+  .detail-panel .notes{font-size:12.5px; color:var(--mist); line-height:1.55;}
+  @media (max-width:860px){ .detail-panel{grid-template-columns:1fr;} }
+
+  /* ---------- Dashboard tab ---------- */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+  .stat-card{padding:16px 18px 16px 20px;border-left-width:3px;border-left-style:solid;transition:transform .2s ease;}
+  .stat-card:hover{transform:translateY(-2px);}
+  .stat-card .lbl{font-size:11.5px;color:var(--mist);margin-bottom:6px;}
+  .stat-card .num{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .stat-card.c-total{border-left-color:var(--violet);}
+  .stat-card.c-accept{border-left-color:var(--accepted);}
+  .stat-card.c-override{border-left-color:var(--override);}
+  .stat-card.c-reject{border-left-color:var(--rejected);}
+  .stat-card.c-total .num{color:var(--paper);}
+  .stat-card.c-accept .num{color:var(--accepted);}
+  .stat-card.c-override .num{color:var(--override);}
+  .stat-card.c-reject .num{color:var(--rejected);}
+
+  .grid-2{display:grid;grid-template-columns:1.05fr 1fr;gap:16px;margin-bottom:24px;}
+  .chart-box{position:relative;height:220px;}
+  .donut-wrap{display:flex;align-items:center;gap:20px;}
+  .donut-legend{display:flex;flex-direction:column;gap:9px;font-size:12.5px;}
+  .donut-legend .item{display:flex;align-items:center;gap:8px;}
+  .donut-legend .sw{width:10px;height:10px;border-radius:3px;flex:none;}
+  .donut-legend .n{color:var(--mist);margin-left:auto;font-family:'JetBrains Mono',monospace;}
+
+  .cat-bars{display:flex;flex-direction:column;gap:11px;}
+  .cat-bar-row{display:grid;grid-template-columns:100px 1fr 28px;align-items:center;gap:10px;}
+  .cat-bar-row .cname{font-size:12.5px;}
+  .cat-bar-track{height:10px;background:rgba(255,255,255,0.08);border-radius:5px;overflow:hidden;border:1px solid var(--panel-border-soft);}
+  .cat-bar-fill{height:100%;border-radius:5px;}
+  .cat-bar-row .cnum{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--mist);text-align:right;}
+
+  #toast{
+    position:fixed;top:18px;right:18px;
+    background:linear-gradient(160deg, rgba(30,22,66,0.9), rgba(20,14,46,0.9));
+    border:1px solid rgba(45,212,191,0.5);
+    color:var(--paper);padding:12px 16px;border-radius:11px;font-size:13px;display:flex;align-items:center;gap:9px;
+    box-shadow:0 12px 30px -10px rgba(0,0,0,0.6);transform:translateY(-14px);opacity:0;pointer-events:none;
+    transition:all .25s ease;z-index:50;backdrop-filter:blur(10px);
+  }
+  #toast.show{transform:translateY(0);opacity:1;}
+  #toast svg{width:16px;height:16px;color:var(--accepted);flex:none;}
+
+  footer{text-align:center;color:var(--mist-dim);font-size:12px;padding:36px 0 10px;font-family:'JetBrains Mono',monospace;position:relative;z-index:2;}
+
+  @media (max-width:860px){
+    .diagnose-grid{grid-template-columns:1fr;}
+    .stat-grid{grid-template-columns:repeat(2,1fr);}
+    .grid-2{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="aurora-blob blob1"></div>
+<div class="aurora-blob blob2"></div>
+<div class="aurora-blob blob3"></div>
+<div class="aurora-blob blob4"></div>
+<canvas id="bgCanvas"></canvas>
+
+<div id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg><span id="toastText"></span></div>
+
+<header>
+  <div class="header-inner">
+    <div class="header-top-row">
+      <div>
+        <div class="wordmark"><span class="dot"></span><h1>Net<span>Sage</span> AI</h1></div>
+        <div class="header-sub mono">netsage@lab:~$ live-diagnose --human-review-required</div>
+      </div>
+      <button class="backend-toggle" id="backendToggle">
+        <span class="backend-dot" id="backendDot"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 005 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span id="backendLabel">Backend</span>
+      </button>
+    </div>
+
+    <div class="backend-panel" id="backendPanel" hidden>
+      <label class="field-label">Backend diagnose URL (from your deployed proxy — see backend/README.md)</label>
+      <div class="backend-panel-row">
+        <input type="text" id="backendUrlInput" class="mono" placeholder="https://your-app.onrender.com/api/diagnose">
+        <button class="icon-btn" id="backendSaveBtn">Save &amp; test</button>
+        <button class="icon-btn ghost" id="backendClearBtn">Clear</button>
+      </div>
+      <p class="backend-status-line" id="backendStatusLine">Not configured — live diagnosis will only work while this page is open inside Claude.</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="diagnose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        Diagnostic Helper
+      </button>
+      <button class="tab-btn" data-tab="explorer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dataset Explorer
+      </button>
+      <button class="tab-btn" data-tab="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-6 4 3 5-8"/></svg>
+        Responsible AI &amp; Analytics
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ============ TAB 1: DIAGNOSE ============ -->
+  <section class="tab-panel" id="panel-diagnose">
+    <p class="eyebrow">Live console</p>
+    <h2 class="page-title">Network Symptom &amp; Command Analysis</h2>
+    <p class="page-sub">Change something in Packet Tracer, copy the resulting CLI output, and paste it below. A deterministic rule engine and a live AI pass both run before you decide anything.</p>
+
+    <div class="diagnose-grid">
+      <div class="panel">
+        <div class="form-field">
+          <label class="field-label">Category (optional, for the dataset)</label>
+          <select id="categorySelect">
+            <option value="">Select a category…</option>
+            <option>VLAN</option><option>Gateway</option><option>DHCP</option><option>DNS</option>
+            <option>Routing</option><option>ACL</option><option>NAT</option><option>Wireless</option>
+            <option>Spanning Tree</option><option>Port Security</option><option>Other</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="field-label">Enter symptom</label>
+          <input type="text" id="symptomInput">
+        </div>
+        <div class="form-field">
+          <label class="field-label">Paste CLI / show-command output</label>
+          <textarea id="cliInput" class="mono"></textarea>
+        </div>
+        <button class="run-btn" id="runBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+          Run Live AI Diagnosis
+        </button>
+        <p class="live-note">Rule engine always runs locally, no network needed. AI diagnosis uses your backend if you've configured one (see the "Backend" button above) — otherwise it calls Claude directly, which only works while this page is open inside Claude.</p>
+      </div>
+
+      <div class="panel results-panel" id="resultsPanel">
+        <div class="empty-state" id="emptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <p>Results will appear here — rule-engine finding, AI root cause, OSI layer, confidence, evidence, and a fix to review.</p>
+        </div>
+        <div id="resultsContent" style="display:none;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 2: EXPLORER ============ -->
+  <section class="tab-panel" id="panel-explorer" hidden>
+    <p class="eyebrow">Case log</p>
+    <h2 class="page-title">Dataset Explorer</h2>
+    <p class="page-sub" id="explorerSub">Every case — the seeded reference cases plus anything you've diagnosed live — in one searchable table.</p>
+
+    <div class="panel">
+      <div class="filters">
+        <input type="text" id="explorerSearch" placeholder="Search case ID or symptom…">
+        <select id="explorerCatFilter"><option value="">All categories</option></select>
+        <select id="explorerStatusFilter">
+          <option value="">All review status</option>
+          <option>Accepted</option><option>Manual Override</option><option>Rejected</option>
+        </select>
+        <div class="spacer result-count" id="explorerCount"></div>
+        <button class="icon-btn" id="exportCsvBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          Download CSV
+        </button>
+        <button class="icon-btn ghost" id="resetDataBtn">Reset to seed data</button>
+      </div>
+      <table>
+        <thead><tr><th>Case</th><th>Category</th><th>Symptom</th><th>AI Diagnosis</th><th>Human Action</th><th>Details</th></tr></thead>
+        <tbody id="explorerBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ TAB 3: DASHBOARD ============ -->
+  <section class="tab-panel" id="panel-dashboard" hidden>
+    <p class="eyebrow">Responsible AI</p>
+    <h2 class="page-title">Responsible AI Audit &amp; Analytics Dashboard</h2>
+    <p class="page-sub">Tracks all human interactions, overrides, and analytics for AI decision governance across every case in the log.</p>
+
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="result-block"><h4>Issue themes</h4></div>
+        <div class="cat-bars" id="dashCatBars"></div>
+      </div>
+      <div class="panel">
+        <div class="result-block"><h4>Human-in-the-loop decision distribution</h4></div>
+        <div class="donut-wrap">
+          <div class="chart-box" style="width:150px;height:150px;flex:none;"><canvas id="statusDonut"></canvas></div>
+          <div class="donut-legend" id="statusLegend"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="filters" style="margin-bottom:14px;">
+        <h4 class="mono" style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--mist);margin:0;">Detailed audit logs</h4>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="exportCsvBtn2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          Download CSV
+        </button>
+      </div>
+      <table>
+        <thead><tr><th>Case</th><th>Symptom</th><th>AI Diagnosis</th><th>Human Action</th><th>Details</th></tr></thead>
+        <tbody id="auditBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>netsage-ai · live-diagnostic-console · human-in-the-loop always on</footer>
+
+<script>
+/* ============================================================
+   LIVE BACKDROP — node network with traveling packets
+   ============================================================ */
+(function(){
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W, H, nodes = [], packets = [];
+  const PALETTE = ['#22D3EE','#C084FC','#F472B6','#FBBF24','#2DD4BF'];
+
+  function resize(){
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function initNodes(){
+    const count = Math.min(46, Math.floor((W*H)/34000));
+    nodes = Array.from({length:count}, () => ({
+      x: Math.random()*W, y: Math.random()*H,
+      vx: (Math.random()-0.5)*0.18, vy: (Math.random()-0.5)*0.18,
+      r: 1.4 + Math.random()*1.6
+    }));
+  }
+  initNodes();
+  window.addEventListener('resize', initNodes);
+
+  function maybeSpawnPacket(){
+    if(nodes.length < 2 || Math.random() > 0.02) return;
+    const a = nodes[Math.floor(Math.random()*nodes.length)];
+    let b = nodes[Math.floor(Math.random()*nodes.length)];
+    let tries = 0;
+    while(b === a && tries < 5){ b = nodes[Math.floor(Math.random()*nodes.length)]; tries++; }
+    if(b === a) return;
+    const dist = Math.hypot(a.x-b.x, a.y-b.y);
+    if(dist > 340) return;
+    packets.push({a, b, t:0, speed: 0.006 + Math.random()*0.006, color: PALETTE[Math.floor(Math.random()*PALETTE.length)]});
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    // connecting lines
+    for(let i=0;i<nodes.length;i++){
+      for(let j=i+1;j<nodes.length;j++){
+        const n1=nodes[i], n2=nodes[j];
+        const dist = Math.hypot(n1.x-n2.x, n1.y-n2.y);
+        if(dist < 160){
+          ctx.strokeStyle = `rgba(199,190,238,${0.14*(1-dist/160)})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(n1.x,n1.y); ctx.lineTo(n2.x,n2.y); ctx.stroke();
+        }
+      }
+    }
+
+    // nodes
+    nodes.forEach(n=>{
+      n.x += n.vx; n.y += n.vy;
+      if(n.x < 0 || n.x > W) n.vx *= -1;
+      if(n.y < 0 || n.y > H) n.vy *= -1;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(199,190,238,0.45)';
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    // traveling packets
+    maybeSpawnPacket();
+    packets = packets.filter(p => p.t <= 1);
+    packets.forEach(p=>{
+      p.t += p.speed;
+      const x = p.a.x + (p.b.x-p.a.x)*p.t;
+      const y = p.a.y + (p.b.y-p.a.y)*p.t;
+      ctx.save();
+      ctx.shadowColor = p.color; ctx.shadowBlur = 10;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(x,y,2.6,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    });
+
+    if(!reduceMotion) requestAnimationFrame(draw);
+  }
+  if(!reduceMotion){ requestAnimationFrame(draw); }
+  else { draw(); }
+})();
+
+/* ============================================================
+   SEED DATA (32 reference cases — see cases.csv / ai_diagnoses.csv / review_log.csv)
+   ============================================================ */
+const SEED_DATA = [{"id": "CASE-01", "timestamp": "2026-08-07T18:05:00Z", "category": "VLAN", "symptom": "PC1 (VLAN 10) cannot ping PC2, both on switch SW1, same subnet.", "cli_output": "SW1# show vlan brief | VLAN10 ACCTG active Fa0/2 | VLAN20 SALES active Fa0/3", "rule_finding": null, "ai_root_cause": "Access port assigned to wrong VLAN (Fa0/3 is in VLAN 20 instead of VLAN 10)", "ai_osi_layer": "L2", "ai_confidence": "Medium", "ai_evidence": "SW1# show vlan brief | VLAN10 ACCTG active Fa0/2 | VLAN20 SALES active Fa0/3", "ai_next_command": "show vlan brief", "ai_fix_steps": "Correct the configuration so it matches: Access port assigned to wrong VLAN (Fa0/3 is in VLAN 20 instead of VLAN 10). Re-run 'show vlan brief' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Access port assigned to wrong VLAN (Fa0/3 is in VLAN 20 instead of VLAN 10). Re-run 'show vlan brief' to verify.", "source": "seed"}, {"id": "CASE-02", "timestamp": "2026-08-07T18:05:00Z", "category": "VLAN", "symptom": "Hosts in VLAN 30 on SW2 cannot reach VLAN 30 hosts on SW1 across the trunk.", "cli_output": "SW1# show interfaces trunk | Port Gi0/1 Vlans allowed: 1,10,20 | Vlans allowed and active: 1,10,20", "rule_finding": null, "ai_root_cause": "VLAN 30 not included in the trunk's allowed VLAN list", "ai_osi_layer": "L2", "ai_confidence": "High", "ai_evidence": "SW1# show interfaces trunk | Port Gi0/1 Vlans allowed: 1,10,20 | Vlans allowed and active: 1,10,20", "ai_next_command": "show vlan brief", "ai_fix_steps": "Correct the configuration so it matches: VLAN 30 not included in the trunk's allowed VLAN list. Re-run 'show vlan brief' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: VLAN 30 not included in the trunk's allowed VLAN list. Re-run 'show vlan brief' to verify.", "source": "seed"}, {"id": "CASE-03", "timestamp": "2026-08-07T18:05:00Z", "category": "VLAN", "symptom": "CDP native VLAN mismatch warnings on trunk link; occasional VLAN-30 traffic leaking to VLAN 1.", "cli_output": "SW1# show interfaces trunk | Native vlan: 1 || SW2# show interfaces trunk | Native vlan: 99 | %CDP-4-NATIVE_VLAN_MISMATCH: Gi0/1", "rule_finding": null, "ai_root_cause": "Trunk not carrying VLAN 30 between SW1 and SW2 (allowed-VLAN list issue)", "ai_osi_layer": "L2", "ai_confidence": "Medium", "ai_evidence": "show interfaces trunk output on both switches", "ai_next_command": "show vlan brief", "ai_fix_steps": "Add VLAN 30 to the trunk's allowed list on both switches.", "human_action": "Manual Override", "human_details": "AI focused on the allowed-VLAN list and missed the explicit CDP native-VLAN mismatch warning in the evidence. Reviewer corrected root cause to 'native VLAN mismatch' and pointed the fix at matching native VLAN on both trunk ends.", "source": "seed"}, {"id": "CASE-04", "timestamp": "2026-08-07T18:05:00Z", "category": "VLAN", "symptom": "Router-on-a-stick sub-interface for VLAN 40 cannot get any ARP replies; PCs in VLAN 40 unreachable.", "cli_output": "SW1# show vlan brief | (VLAN 40 not listed) || SW1# show run | interface vlan40 -> % Invalid input", "rule_finding": null, "ai_root_cause": "VLAN 40 was never created on the switch (vlan database missing entry)", "ai_osi_layer": "L2", "ai_confidence": "High", "ai_evidence": "SW1# show vlan brief | (VLAN 40 not listed) || SW1# show run | interface vlan40 -> % Invalid input", "ai_next_command": "show vlan brief", "ai_fix_steps": "Correct the configuration so it matches: VLAN 40 was never created on the switch (vlan database missing entry). Re-run 'show vlan brief' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: VLAN 40 was never created on the switch (vlan database missing entry). Re-run 'show vlan brief' to verify.", "source": "seed"}, {"id": "CASE-05", "timestamp": "2026-08-07T18:05:00Z", "category": "Gateway", "symptom": "PC1 gets a valid IP via DHCP but cannot reach any host outside its own subnet.", "cli_output": "PC1> ipconfig | Gateway: 192.168.1.100 || R1# show ip interface brief | Gi0/0 192.168.1.1 up up", "rule_finding": null, "ai_root_cause": "PC1 configured with wrong default gateway (192.168.1.100 instead of .1)", "ai_osi_layer": "L3", "ai_confidence": "Medium", "ai_evidence": "PC1> ipconfig | Gateway: 192.168.1.100 || R1# show ip interface brief | Gi0/0 192.168.1.1 up up", "ai_next_command": "show ip interface brief", "ai_fix_steps": "Correct the configuration so it matches: PC1 configured with wrong default gateway (192.168.1.100 instead of .1). Re-run 'show ip interface brief' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: PC1 configured with wrong default gateway (192.168.1.100 instead of .1). Re-run 'show ip interface brief' to verify.", "source": "seed"}, {"id": "CASE-06", "timestamp": "2026-08-07T18:05:00Z", "category": "Gateway", "symptom": "All PCs in VLAN 20 lost gateway connectivity at the same time; gateway ping fails from every host.", "cli_output": "R1# show ip interface brief | Gi0/0.20 192.168.20.1 administratively down down", "rule_finding": null, "ai_root_cause": "Router sub-interface for VLAN 20 is administratively shut down", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show ip interface brief | Gi0/0.20 192.168.20.1 administratively down down", "ai_next_command": "show ip interface brief", "ai_fix_steps": "Correct the configuration so it matches: Router sub-interface for VLAN 20 is administratively shut down. Re-run 'show ip interface brief' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Router sub-interface for VLAN 20 is administratively shut down. Re-run 'show ip interface brief' to verify.", "source": "seed"}, {"id": "CASE-07", "timestamp": "2026-08-07T18:05:00Z", "category": "Gateway", "symptom": "PC3 cannot ping its gateway even though the interface shows up/up on the router.", "cli_output": "R1# show run interface Gi0/0.30 | ip address 192.168.30.1 255.255.255.0 || PC3> ipconfig | Gateway: 192.168.30.254", "rule_finding": null, "ai_root_cause": "DHCP server assigned an incorrect gateway option to PC3", "ai_osi_layer": "L3", "ai_confidence": "Low", "ai_evidence": "PC3 ipconfig output", "ai_next_command": "show ip interface brief", "ai_fix_steps": "Check the DHCP pool's default-router statement.", "human_action": "Manual Override", "human_details": "PC3's gateway was statically set, not DHCP-assigned, so the AI's DHCP theory was never testable against the evidence. Reviewer corrected the root cause to a manual gateway typo (.254 vs the router's real .1) after checking PC3's config mode.", "source": "seed"}, {"id": "CASE-08", "timestamp": "2026-08-07T18:05:00Z", "category": "Gateway", "symptom": "Intermittent gateway loss reported by two PCs; both show the same MAC in ARP for the gateway IP.", "cli_output": "PC1> arp -a | 192.168.1.1 aaaa.bbbb.0001 || PC5> ipconfig | IP: 192.168.1.1 (statically set)", "rule_finding": null, "ai_root_cause": "Duplicate IP address: PC5 was statically configured with the router's gateway address", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "PC1> arp -a | 192.168.1.1 aaaa.bbbb.0001 || PC5> ipconfig | IP: 192.168.1.1 (statically set)", "ai_next_command": "show ip interface brief", "ai_fix_steps": "Correct the configuration so it matches: Duplicate IP address: PC5 was statically configured with the router's gateway address. Re-run 'show ip interface brief' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Duplicate IP address: PC5 was statically configured with the router's gateway address. Re-run 'show ip interface brief' to verify.", "source": "seed"}, {"id": "CASE-09", "timestamp": "2026-08-07T18:05:00Z", "category": "DHCP", "symptom": "New PCs joining VLAN 10 fail to obtain an IP address; existing PCs are fine.", "cli_output": "R1# show ip dhcp pool VLAN10 | Total addresses: 30 | Leased: 30 | Available: 0", "rule_finding": null, "ai_root_cause": "DHCP pool for VLAN 10 is exhausted (no addresses available)", "ai_osi_layer": "L3", "ai_confidence": "Medium", "ai_evidence": "R1# show ip dhcp pool VLAN10 | Total addresses: 30 | Leased: 30 | Available: 0", "ai_next_command": "show ip dhcp pool", "ai_fix_steps": "Correct the configuration so it matches: DHCP pool for VLAN 10 is exhausted (no addresses available). Re-run 'show ip dhcp pool' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: DHCP pool for VLAN 10 is exhausted (no addresses available). Re-run 'show ip dhcp pool' to verify.", "source": "seed"}, {"id": "CASE-10", "timestamp": "2026-08-07T18:05:00Z", "category": "DHCP", "symptom": "PCs in VLAN 20 receive no IP address at all; DHCP server lives in VLAN 1 on R1.", "cli_output": "R1# show run interface Gi0/0.20 | ip address 192.168.20.1 255.255.255.0 (no ip helper-address line present)", "rule_finding": null, "ai_root_cause": "Missing 'ip helper-address' on the VLAN 20 sub-interface to relay DHCP broadcasts", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show run interface Gi0/0.20 | ip address 192.168.20.1 255.255.255.0 (no ip helper-address line present)", "ai_next_command": "show ip dhcp pool", "ai_fix_steps": "Correct the configuration so it matches: Missing 'ip helper-address' on the VLAN 20 sub-interface to relay DHCP broadcasts. Re-run 'show ip dhcp pool' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Missing 'ip helper-address' on the VLAN 20 sub-interface to relay DHCP broadcasts. Re-run 'show ip dhcp pool' to verify.", "source": "seed"}, {"id": "CASE-11", "timestamp": "2026-08-07T18:05:00Z", "category": "DHCP", "symptom": "PCs in VLAN 30 receive IP addresses from the wrong subnet (192.168.99.x instead of 192.168.30.x).", "cli_output": "R1# show run | ip dhcp pool VLAN30 -> network 192.168.99.0 255.255.255.0", "rule_finding": null, "ai_root_cause": "DHCP pool VLAN30 is configured with the wrong network statement", "ai_osi_layer": "L3", "ai_confidence": "Medium", "ai_evidence": "R1# show run | ip dhcp pool VLAN30 -> network 192.168.99.0 255.255.255.0", "ai_next_command": "show ip dhcp pool", "ai_fix_steps": "Correct the configuration so it matches: DHCP pool VLAN30 is configured with the wrong network statement. Re-run 'show ip dhcp pool' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: DHCP pool VLAN30 is configured with the wrong network statement. Re-run 'show ip dhcp pool' to verify.", "source": "seed"}, {"id": "CASE-12", "timestamp": "2026-08-07T18:05:00Z", "category": "DHCP", "symptom": "Two devices intermittently report an IP conflict with the router's own gateway address.", "cli_output": "R1# show run | ip dhcp excluded-address 192.168.10.2 192.168.10.10 (missing .1)", "rule_finding": null, "ai_root_cause": "DHCP pool for VLAN 10 is exhausted (no addresses available)", "ai_osi_layer": "L3", "ai_confidence": "Medium", "ai_evidence": "show ip dhcp pool VLAN10 output", "ai_next_command": "show ip dhcp pool", "ai_fix_steps": "Increase the DHCP pool size or reduce lease time.", "human_action": "Manual Override", "human_details": "AI pattern-matched this to the more common 'pool exhausted' case (C009) instead of reading the actual excluded-address range in the evidence. Reviewer rejected the pool-exhaustion theory and corrected it to a missing gateway exclusion, which is a more serious IP-conflict risk, not just a capacity issue.", "source": "seed"}, {"id": "CASE-13", "timestamp": "2026-08-07T18:05:00Z", "category": "DNS", "symptom": "PCs can ping the file server by IP but 'ping server1.local' fails with 'Unknown host'.", "cli_output": "PC2> ipconfig /all | DNS Servers: 192.168.1.250 (should be .200, the real DNS host)", "rule_finding": null, "ai_root_cause": "DHCP option 6 (DNS server) is pointing at the wrong host IP", "ai_osi_layer": "L7", "ai_confidence": "Medium", "ai_evidence": "PC2> ipconfig /all | DNS Servers: 192.168.1.250 (should be .200, the real DNS host)", "ai_next_command": "show access-lists", "ai_fix_steps": "Correct the configuration so it matches: DHCP option 6 (DNS server) is pointing at the wrong host IP. Re-run 'show access-lists' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: DHCP option 6 (DNS server) is pointing at the wrong host IP. Re-run 'show access-lists' to verify.", "source": "seed"}, {"id": "CASE-14", "timestamp": "2026-08-07T18:05:00Z", "category": "DNS", "symptom": "Name resolution fails intermittently; DNS server itself is reachable by ping but not by name queries.", "cli_output": "R1# show access-lists 101 | deny udp any any eq 53 (before any DNS permit line)", "rule_finding": null, "ai_root_cause": "ACL 101 blocks UDP/53 (DNS) traffic before any permit statement is reached", "ai_osi_layer": "L4", "ai_confidence": "High", "ai_evidence": "R1# show access-lists 101 | deny udp any any eq 53 (before any DNS permit line)", "ai_next_command": "show access-lists", "ai_fix_steps": "Correct the configuration so it matches: ACL 101 blocks UDP/53 (DNS) traffic before any permit statement is reached. Re-run 'show access-lists' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: ACL 101 blocks UDP/53 (DNS) traffic before any permit statement is reached. Re-run 'show access-lists' to verify.", "source": "seed"}, {"id": "CASE-15", "timestamp": "2026-08-07T18:05:00Z", "category": "DNS", "symptom": "Router-based DNS lookups fail for 'server1' when tested from the router itself; 'ip domain-lookup' is enabled.", "cli_output": "R1# show run | ip domain-lookup | (no 'ip name-server' line present)", "rule_finding": null, "ai_root_cause": "Missing 'ip name-server <dns-ip>' statement on the router", "ai_osi_layer": "L7", "ai_confidence": "Medium", "ai_evidence": "R1# show run | ip domain-lookup | (no 'ip name-server' line present)", "ai_next_command": "show access-lists", "ai_fix_steps": "Correct the configuration so it matches: Missing 'ip name-server <dns-ip>' statement on the router. Re-run 'show access-lists' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Missing 'ip name-server <dns-ip>' statement on the router. Re-run 'show access-lists' to verify.", "source": "seed"}, {"id": "CASE-16", "timestamp": "2026-08-07T18:05:00Z", "category": "DNS", "symptom": "PC4 cannot resolve 'server1.local' even though DNS server config and reachability are correct for all other PCs.", "cli_output": "PC4> ipconfig /all | DNS Servers: 10.10.10.10 (stale entry, statically set, not matching current network's DHCP-issued DNS)", "rule_finding": null, "ai_root_cause": "PC4 has a stale statically-configured DNS entry left over from a previous network", "ai_osi_layer": "L7", "ai_confidence": "Medium", "ai_evidence": "PC4> ipconfig /all | DNS Servers: 10.10.10.10 (stale entry, statically set, not matching current network's DHCP-issued DNS)", "ai_next_command": "show access-lists", "ai_fix_steps": "Correct the configuration so it matches: PC4 has a stale statically-configured DNS entry left over from a previous network. Re-run 'show access-lists' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: PC4 has a stale statically-configured DNS entry left over from a previous network. Re-run 'show access-lists' to verify.", "source": "seed"}, {"id": "CASE-17", "timestamp": "2026-08-07T18:05:00Z", "category": "Routing", "symptom": "VLAN 10 hosts cannot reach the 172.16.0.0/24 server subnet on R2; R1's routing table has no entry for it.", "cli_output": "R1# show ip route | 172.16.0.0 -- (no matching route line present)", "rule_finding": null, "ai_root_cause": "Missing static route on R1 for the 172.16.0.0/24 network via R2", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show ip route | 172.16.0.0 -- (no matching route line present)", "ai_next_command": "show ip route", "ai_fix_steps": "Correct the configuration so it matches: Missing static route on R1 for the 172.16.0.0/24 network via R2. Re-run 'show ip route' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Missing static route on R1 for the 172.16.0.0/24 network via R2. Re-run 'show ip route' to verify.", "source": "seed"}, {"id": "CASE-18", "timestamp": "2026-08-07T18:05:00Z", "category": "Routing", "symptom": "R1 and R2 are RIP neighbors, but hosts on R2's LAN cannot be reached from R1's LAN.", "cli_output": "R2# show run | router rip | version 2 | network 10.0.0.0 (192.168.20.0 network statement missing)", "rule_finding": null, "ai_root_cause": "R2 is not advertising its LAN network (192.168.20.0) into RIP", "ai_osi_layer": "L3", "ai_confidence": "Medium", "ai_evidence": "R2# show run | router rip | version 2 | network 10.0.0.0 (192.168.20.0 network statement missing)", "ai_next_command": "show ip route", "ai_fix_steps": "Correct the configuration so it matches: R2 is not advertising its LAN network (192.168.20.0) into RIP. Re-run 'show ip route' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: R2 is not advertising its LAN network (192.168.20.0) into RIP. Re-run 'show ip route' to verify.", "source": "seed"}, {"id": "CASE-19", "timestamp": "2026-08-07T18:05:00Z", "category": "Routing", "symptom": "OSPF neighbor relationship between R1 and R2 stuck in INIT/EXSTART, no routes exchanged.", "cli_output": "R1# show ip ospf interface Gi0/1 | Area 0 || R2# show ip ospf interface Gi0/1 | Area 1", "rule_finding": null, "ai_root_cause": "OSPF area number mismatch between R1 (area 0) and R2 (area 1) on the shared link", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show ip ospf interface Gi0/1 | Area 0 || R2# show ip ospf interface Gi0/1 | Area 1", "ai_next_command": "show ip route", "ai_fix_steps": "Correct the configuration so it matches: OSPF area number mismatch between R1 (area 0) and R2 (area 1) on the shared link. Re-run 'show ip route' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: OSPF area number mismatch between R1 (area 0) and R2 (area 1) on the shared link. Re-run 'show ip route' to verify.", "source": "seed"}, {"id": "CASE-20", "timestamp": "2026-08-07T18:05:00Z", "category": "Routing", "symptom": "Route to 172.16.20.0/24 exists in the routing table but traffic to it still times out.", "cli_output": "R1# show ip route 172.16.20.0 | via 172.16.10.2 || R1# show ip route 172.16.10.0 | (no directly connected or learned route to reach .2)", "rule_finding": null, "ai_root_cause": "Missing static route on R1 for the 172.16.20.0/24 network", "ai_osi_layer": "L3", "ai_confidence": "Medium", "ai_evidence": "show ip route 172.16.20.0 output", "ai_next_command": "show ip route", "ai_fix_steps": "Add a static route for 172.16.20.0/24.", "human_action": "Manual Override", "human_details": "A route to 172.16.20.0/24 does exist in the table, so 'missing route' was not accurate. Reviewer corrected the diagnosis to a recursive routing failure: the route's next-hop is itself unreachable, so it never resolves to an exit interface.", "source": "seed"}, {"id": "CASE-21", "timestamp": "2026-08-07T18:05:00Z", "category": "ACL", "symptom": "PCs in 192.168.10.0/24 can no longer reach the 192.168.30.0/24 server subnet after an ACL was added.", "cli_output": "R1# show access-lists 110 | 10 deny ip any any | (implicit/explicit deny-all is the only line, no permit statements)", "rule_finding": null, "ai_root_cause": "ACL 110 has no permit statement for the 192.168.10.0/24 subnet, so all traffic is denied", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show access-lists 110 | 10 deny ip any any | (implicit/explicit deny-all is the only line, no permit statements)", "ai_next_command": "show access-lists", "ai_fix_steps": "Correct the configuration so it matches: ACL 110 has no permit statement for the 192.168.10.0/24 subnet, so all traffic is denied. Re-run 'show access-lists' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: ACL 110 has no permit statement for the 192.168.10.0/24 subnet, so all traffic is denied. Re-run 'show access-lists' to verify.", "source": "seed"}, {"id": "CASE-22", "timestamp": "2026-08-07T18:05:00Z", "category": "ACL", "symptom": "ACL 120 was written to block only outbound Internet traffic from VLAN 40, but it is also blocking VLAN 40's inbound replies.", "cli_output": "R1# show run interface Gi0/0.40 | ip access-group 120 in (intended direction was out)", "rule_finding": null, "ai_root_cause": "ACL 120 applied in the wrong direction (in instead of out) on the sub-interface", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show run interface Gi0/0.40 | ip access-group 120 in (intended direction was out)", "ai_next_command": "show access-lists", "ai_fix_steps": "Correct the configuration so it matches: ACL 120 applied in the wrong direction (in instead of out) on the sub-interface. Re-run 'show access-lists' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: ACL 120 applied in the wrong direction (in instead of out) on the sub-interface. Re-run 'show access-lists' to verify.", "source": "seed"}, {"id": "CASE-23", "timestamp": "2026-08-07T18:05:00Z", "category": "ACL", "symptom": "Host 192.168.10.15 should be blocked from the server subnet, but the whole 192.168.10.0/24 subnet lost access, including hosts that should be permitted.", "cli_output": "R1# show access-lists 130 | 10 deny ip host 192.168.10.15 any | 20 deny ip 192.168.10.0 0.0.0.255 any | 30 permit ip any any", "rule_finding": null, "ai_root_cause": "ACL statement order denies the entire 192.168.10.0/24 subnet (line 20) instead of only the intended host", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show access-lists 130 | 10 deny ip host 192.168.10.15 any | 20 deny ip 192.168.10.0 0.0.0.255 any | 30 permit ip any any", "ai_next_command": "show access-lists", "ai_fix_steps": "Correct the configuration so it matches: ACL statement order denies the entire 192.168.10.0/24 subnet (line 20) instead of only the intended host. Re-run 'show access-lists' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: ACL statement order denies the entire 192.168.10.0/24 subnet (line 20) instead of only the intended host. Re-run 'show access-lists' to verify.", "source": "seed"}, {"id": "CASE-24", "timestamp": "2026-08-07T18:05:00Z", "category": "ACL", "symptom": "Internal clients can send requests to the web server, but replies never make it back to the clients.", "cli_output": "R1# show access-lists 140 | 10 permit tcp any any eq 80 | (no 'established' or matching return-traffic permit for client-initiated sessions)", "rule_finding": null, "ai_root_cause": "NAT overload not translating return traffic from the web server", "ai_osi_layer": "L4", "ai_confidence": "Low", "ai_evidence": "show ip nat translations output", "ai_next_command": "show access-lists", "ai_fix_steps": "Verify NAT inside/outside interface markings.", "human_action": "Rejected", "human_details": "No NAT is involved in this topology at all; the AI pattern-matched 'replies not coming back' to a NAT issue from a similar past case. Reviewer rejected this and identified the real cause in ACL 140, which lacks a permit for established/return traffic.", "source": "seed"}, {"id": "CASE-25", "timestamp": "2026-08-07T18:05:00Z", "category": "NAT", "symptom": "All internal PCs can ping each other and the router, but none can reach the simulated Internet server.", "cli_output": "R1# show ip nat translations | (empty) || R1# show run | (no 'ip nat inside'/'ip nat outside' interface commands found)", "rule_finding": null, "ai_root_cause": "NAT overload command exists, but the inside/outside interfaces were never marked, so no translation occurs", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show ip nat translations | (empty) || R1# show run | (no 'ip nat inside'/'ip nat outside' interface commands found)", "ai_next_command": "show ip nat translations", "ai_fix_steps": "Correct the configuration so it matches: NAT overload command exists, but the inside/outside interfaces were never marked, so no translation occurs. Re-run 'show ip nat translations' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: NAT overload command exists, but the inside/outside interfaces were never marked, so no translation occurs. Re-run 'show ip nat translations' to verify.", "source": "seed"}, {"id": "CASE-26", "timestamp": "2026-08-07T18:05:00Z", "category": "NAT", "symptom": "Only some internal hosts can reach the Internet server; others get no response at all.", "cli_output": "R1# show access-lists 1 | 10 permit 192.168.10.0 0.0.0.255 | (192.168.20.0 network not included)", "rule_finding": null, "ai_root_cause": "NAT's referenced ACL only permits 192.168.10.0/24, leaving 192.168.20.0/24 untranslated", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show access-lists 1 | 10 permit 192.168.10.0 0.0.0.255 | (192.168.20.0 network not included)", "ai_next_command": "show ip nat translations", "ai_fix_steps": "Correct the configuration so it matches: NAT's referenced ACL only permits 192.168.10.0/24, leaving 192.168.20.0/24 untranslated. Re-run 'show ip nat translations' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: NAT's referenced ACL only permits 192.168.10.0/24, leaving 192.168.20.0/24 untranslated. Re-run 'show ip nat translations' to verify.", "source": "seed"}, {"id": "CASE-27", "timestamp": "2026-08-07T18:05:00Z", "category": "NAT", "symptom": "'show ip nat translations' stays empty even though the NAT and ACL configuration both look correct.", "cli_output": "R1# show ip nat statistics | Inside interfaces: (none) | Outside interfaces: (none)", "rule_finding": null, "ai_root_cause": "Interfaces were never explicitly marked with 'ip nat inside' / 'ip nat outside'", "ai_osi_layer": "L3", "ai_confidence": "High", "ai_evidence": "R1# show ip nat statistics | Inside interfaces: (none) | Outside interfaces: (none)", "ai_next_command": "show ip nat translations", "ai_fix_steps": "Correct the configuration so it matches: Interfaces were never explicitly marked with 'ip nat inside' / 'ip nat outside'. Re-run 'show ip nat translations' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Interfaces were never explicitly marked with 'ip nat inside' / 'ip nat outside'. Re-run 'show ip nat translations' to verify.", "source": "seed"}, {"id": "CASE-28", "timestamp": "2026-08-07T18:05:00Z", "category": "NAT", "symptom": "External users cannot reach the internal web server via the public IP on port 80.", "cli_output": "R1# show run | ip nat inside source static tcp 192.168.10.100 8080 203.0.113.10 80 (internal port mismatch: server actually listens on 80, not 8080)", "rule_finding": null, "ai_root_cause": "Static NAT mapping references the wrong internal port (8080) instead of the server's actual port (80)", "ai_osi_layer": "L4", "ai_confidence": "Medium", "ai_evidence": "R1# show run | ip nat inside source static tcp 192.168.10.100 8080 203.0.113.10 80 (internal port mismatch: server actually listens on 80, not 8080)", "ai_next_command": "show ip nat translations", "ai_fix_steps": "Correct the configuration so it matches: Static NAT mapping references the wrong internal port (8080) instead of the server's actual port (80). Re-run 'show ip nat translations' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Static NAT mapping references the wrong internal port (8080) instead of the server's actual port (80). Re-run 'show ip nat translations' to verify.", "source": "seed"}, {"id": "CASE-29", "timestamp": "2026-08-07T18:05:00Z", "category": "Wireless", "symptom": "Laptop cannot associate with the corporate WLAN; repeated authentication failures.", "cli_output": "AP# show running-config | ssid CORP-WIFI | authentication key: Cisco123! || Laptop entered passphrase: cisco123", "rule_finding": null, "ai_root_cause": "Passphrase mismatch between the client (lowercase, missing symbol) and the AP's configured key", "ai_osi_layer": "L2", "ai_confidence": "Medium", "ai_evidence": "AP# show running-config | ssid CORP-WIFI | authentication key: Cisco123! || Laptop entered passphrase: cisco123", "ai_next_command": "show interface dot11radio0", "ai_fix_steps": "Correct the configuration so it matches: Passphrase mismatch between the client (lowercase, missing symbol) and the AP's configured key. Re-run 'show interface dot11radio0' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Passphrase mismatch between the client (lowercase, missing symbol) and the AP's configured key. Re-run 'show interface dot11radio0' to verify.", "source": "seed"}, {"id": "CASE-30", "timestamp": "2026-08-07T18:05:00Z", "category": "Wireless", "symptom": "Guest Wi-Fi clients can reach internal file servers and printers, which should never happen.", "cli_output": "AP# show run | interface dot11radio0 | ssid GUEST-WIFI vlan 50 || SW1# show vlan brief | VLAN 50 not present; port defaults to VLAN 1 (same as internal trunk native)", "rule_finding": null, "ai_root_cause": "Wireless channel overlap causing dropped guest sessions", "ai_osi_layer": "L2", "ai_confidence": "Low", "ai_evidence": "AP radio configuration", "ai_next_command": "show interface dot11radio0", "ai_fix_steps": "Change one AP to a non-overlapping channel.", "human_action": "Rejected", "human_details": "This is a security-relevant misconfiguration (guest traffic reaching internal servers), not a performance issue, and the AI's channel-overlap theory does not explain guest devices reaching internal file servers at all. Reviewer rejected the AI output outright and escalated as a Responsible-AI flag: an AI system should not be trusted to self-certify security-boundary issues without a human check, since a wrong 'root cause' here could leave a real security gap unresolved.", "source": "seed"}, {"id": "CASE-31", "timestamp": "2026-08-07T18:05:00Z", "category": "Wireless", "symptom": "Wireless clients near two APs experience high latency and frequent disconnects in the overlap zone.", "cli_output": "AP1# show interface dot11radio0 | Channel: 6 || AP2# show interface dot11radio0 | Channel: 6", "rule_finding": null, "ai_root_cause": "Co-channel interference: both APs are set to the same 2.4GHz channel (6) in overlapping coverage areas", "ai_osi_layer": "L1", "ai_confidence": "Medium", "ai_evidence": "AP1# show interface dot11radio0 | Channel: 6 || AP2# show interface dot11radio0 | Channel: 6", "ai_next_command": "show interface dot11radio0", "ai_fix_steps": "Correct the configuration so it matches: Co-channel interference: both APs are set to the same 2.4GHz channel (6) in overlapping coverage areas. Re-run 'show interface dot11radio0' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: Co-channel interference: both APs are set to the same 2.4GHz channel (6) in overlapping coverage areas. Re-run 'show interface dot11radio0' to verify.", "source": "seed"}, {"id": "CASE-32", "timestamp": "2026-08-07T18:05:00Z", "category": "Wireless", "symptom": "Wireless clients associate with the AP successfully but never receive an IP address.", "cli_output": "SW1# show interfaces Fa0/5 switchport | Administrative Mode: static access | Access Mode VLAN: 1", "rule_finding": null, "ai_root_cause": "AP's uplink switch port is set to access mode VLAN 1 instead of trunking VLAN 60 to the DHCP relay router", "ai_osi_layer": "L2", "ai_confidence": "High", "ai_evidence": "SW1# show interfaces Fa0/5 switchport | Administrative Mode: static access | Access Mode VLAN: 1", "ai_next_command": "show interface dot11radio0", "ai_fix_steps": "Correct the configuration so it matches: AP's uplink switch port is set to access mode VLAN 1 instead of trunking VLAN 60 to the DHCP relay router. Re-run 'show interface dot11radio0' to verify.", "human_action": "Accepted", "human_details": "Fix applied and verified: Correct the configuration so it matches: AP's uplink switch port is set to access mode VLAN 1 instead of trunking VLAN 60 to the DHCP relay router. Re-run 'show interface dot11radio0' to verify.", "source": "seed"}];
+
+/* ============================================================
+   RULE ENGINE — deterministic, runs on every submission, no network needed
+   ============================================================ */
+const RULES = [
+  {code:"ERR_PORT_ADMIN_DOWN", severity:"Critical", layer:"L1",
+   test:t=>/administratively down/i.test(t),
+   message:"Interface is administratively shut down. Requires a 'no shutdown' command.",
+   command:"show interface <intf>"},
+  {code:"ERR_LINE_PROTOCOL_DOWN", severity:"High", layer:"L1",
+   test:t=>/line protocol.*changed state to down/i.test(t) && !/administratively down/i.test(t),
+   message:"Line protocol is down while the port is not admin-shut — check cabling, the far-end device, or a duplex/speed mismatch.",
+   command:"show interface <intf>"},
+  {code:"ERR_NATIVE_VLAN_MISMATCH", severity:"Medium", layer:"L2",
+   test:t=>/native.?vlan.?mismatch/i.test(t),
+   message:"CDP reports a native VLAN mismatch across a trunk link.",
+   command:"show interface trunk"},
+  {code:"ERR_VLAN_MISSING", severity:"High", layer:"L2",
+   test:t=>/vlan\s*\d+.*(not found|does not exist|invalid vlan)/i.test(t) || /%invalid input/i.test(t),
+   message:"The referenced VLAN does not exist in the VLAN database.",
+   command:"show vlan brief"},
+  {code:"ERR_DUPLICATE_IP", severity:"High", layer:"L3",
+   test:t=>/duplicate ip address|dup(licate)?[_\s]addr/i.test(t),
+   message:"Duplicate IP address detected on this segment.",
+   command:"show ip arp"},
+  {code:"ERR_DHCP_HELPER_MISSING", severity:"High", layer:"L3",
+   test:t=>/dhcp/i.test(t) && /(no ip helper-address|missing.*helper.?address)/i.test(t),
+   message:"DHCP broadcasts are not being relayed — 'ip helper-address' looks missing on this SVI or sub-interface.",
+   command:"show run interface <vlan-if>"},
+  {code:"ERR_DHCP_POOL", severity:"Medium", layer:"L3",
+   test:t=>/dhcp/i.test(t) && /(exhaust|no addresses? available|conflict)/i.test(t),
+   message:"DHCP pool appears exhausted or in conflict — check leased vs. total addresses and the excluded-address range.",
+   command:"show ip dhcp pool"},
+  {code:"ERR_ACL_DENY", severity:"High", layer:"L3",
+   test:t=>/%sec-6-ipaccesslogp|access-list.*denied|acl.*deny/i.test(t),
+   message:"An access list is logging denied traffic matching this symptom.",
+   command:"show access-lists"},
+  {code:"ERR_OSPF_STUCK", severity:"High", layer:"L3",
+   test:t=>/ospf.*(exstart|exchange|\binit\b)/i.test(t),
+   message:"OSPF neighbor adjacency is stuck before FULL — common causes are area, MTU, or authentication mismatch.",
+   command:"show ip ospf neighbor"},
+  {code:"ERR_NAT_NO_TRANSLATION", severity:"High", layer:"L3",
+   test:t=>/no (matching )?nat translation|nat.*failed/i.test(t),
+   message:"No NAT translation entry was found for this traffic.",
+   command:"show ip nat translations"},
+  {code:"ERR_STP_TOPOLOGY", severity:"Medium", layer:"L2",
+   test:t=>/topology_ch|spanning-tree.*block/i.test(t),
+   message:"Spanning-Tree Protocol reported a topology change or a blocking port.",
+   command:"show spanning-tree"},
+  {code:"ERR_BGP_FLAP", severity:"High", layer:"L3",
+   test:t=>/%bgp-5-adjchange.*down|bgp.*flap/i.test(t),
+   message:"BGP neighbor adjacency flapped — check keepalive/holdtime timers or a flapping link.",
+   command:"show ip bgp summary"},
+  {code:"ERR_HSRP_STATE", severity:"Medium", layer:"L3",
+   test:t=>/hsrp.*(active|standby|speak)/i.test(t),
+   message:"HSRP reported a state change — check priority, preemption, and timers.",
+   command:"show standby brief"},
+  {code:"ERR_PORT_SECURITY", severity:"High", layer:"L2",
+   test:t=>/psecure_violation|port-security/i.test(t),
+   message:"Port security violation — an unauthorized MAC address hit a secured port.",
+   command:"show port-security"},
+  {code:"ERR_ERR_DISABLED", severity:"Critical", layer:"L2",
+   test:t=>/err-disabled/i.test(t),
+   message:"Interface was placed into err-disabled state by a protective feature (port security, BPDU guard, etc.).",
+   command:"show interface status err-disabled"},
+];
+
+function runRuleEngine(text){
+  if(!text || !text.trim()) return null;
+  const hits = RULES.filter(r => r.test(text));
+  if(!hits.length) return null;
+  const order = {Critical:0, High:1, Medium:2, Low:3};
+  hits.sort((a,b)=>order[a.severity]-order[b.severity]);
+  return hits[0];
+}
+
+/* ============================================================
+   LIVE AI CALL — mirrors diagnose_prompt.md + few_shot_examples.md
+   ============================================================ */
+const SYSTEM_PROMPT = `You are NetSage AI, a troubleshooting assistant for Cisco-style Packet Tracer lab networks. You help junior network engineers connect a symptom to its real root cause. You are a DRAFTING tool, not an authority: every answer you give is reviewed, and may be edited or rejected, by a human network engineer before anyone acts on it.
+
+RULES:
+1. Base root_cause ONLY on evidence present in the provided symptom/show output. Never invent config lines, interface names, or IP addresses that were not given to you.
+2. evidence must directly quote or closely paraphrase the specific part of the show output that supports root_cause. If nothing supports a theory, do not propose it.
+3. Identify the OSI layer most responsible (L1 Physical, L2 Data Link, L3 Network, L4 Transport, L7 Application).
+4. confidence is "Low", "Medium", or "High" depending on how directly the evidence supports the conclusion.
+5. next_command is a single real Cisco IOS show command (or client-side command) that would gather the next best evidence.
+6. fix_steps must be concrete and specific, not generic advice.
+7. If evidence is ambiguous, say so honestly and lower confidence rather than guessing with false certainty.
+8. Never state that a fix has been applied — you only recommend; a human applies and verifies it.
+9. Output ONLY a JSON object with exactly these keys: root_cause, osi_layer, confidence, evidence, next_command, fix_steps. No prose before or after, no markdown fences.`;
+
+const FEWSHOT = [
+  {role:"user", content:"CASE ID: EX-01\nCATEGORY: VLAN\nSYMPTOM: PC1 (VLAN 10) cannot ping PC2, both on switch SW1, same subnet.\nTOPOLOGY NOTE: SW1 Fa0/2->PC1, Fa0/3->PC2. Both should be VLAN 10.\nSHOW OUTPUT:\nSW1# show vlan brief | VLAN10 ACCTG active Fa0/2 | VLAN20 SALES active Fa0/3"},
+  {role:"assistant", content:JSON.stringify({
+    root_cause:"PC2's switch port (Fa0/3) is assigned to VLAN 20 instead of VLAN 10, so it is on a different broadcast domain than PC1.",
+    osi_layer:"L2", confidence:"High",
+    evidence:"show vlan brief lists Fa0/3 under VLAN20 SALES, not VLAN10 ACCTG where Fa0/2 (PC1) sits.",
+    next_command:"show running-config interface Fa0/3",
+    fix_steps:"On SW1, enter interface Fa0/3 and run 'switchport access vlan 10' to move PC2 into VLAN 10, then verify with 'show vlan brief'."
+  })},
+  {role:"user", content:"CASE ID: EX-03\nCATEGORY: Wireless\nSYMPTOM: Wireless clients near two APs experience high latency and frequent disconnects in the overlap zone.\nTOPOLOGY NOTE: AP1 and AP2 cover adjoining rooms with overlapping coverage.\nSHOW OUTPUT:\nAP1# show interface dot11radio0 | Channel: 6 || AP2# show interface dot11radio0 | Channel: 6"},
+  {role:"assistant", content:JSON.stringify({
+    root_cause:"Both APs are broadcasting on the same 2.4GHz channel (6) in an overlapping coverage area, consistent with co-channel interference, though signal/interference readings have not been captured yet.",
+    osi_layer:"L1", confidence:"Low",
+    evidence:"AP1 and AP2 both report Channel: 6 on dot11radio0.",
+    next_command:"show interface dot11radio0 statistics",
+    fix_steps:"Move AP2 to a non-overlapping channel (e.g. 1 or 11) and monitor client disconnect rate before confirming the fix resolved the issue."
+  })},
+];
+
+/* ============================================================
+   BACKEND PROXY — configured from the "Backend" panel in the header
+   (saved to storage, no code editing needed), or hardcode a default below.
+   When set, this is tried FIRST so the page works for anyone, not just
+   inside Claude. Empty = skip straight to the Claude-in-Claude path.
+   Example: "https://netsage-proxy.onrender.com/api/diagnose"
+   ============================================================ */
+let PROXY_URL = "";
+
+async function callViaProxy(symptom, cliOutput, category){
+  const res = await fetch(PROXY_URL, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ symptom, cliOutput, category: category || "Unspecified" })
+  });
+  if(!res.ok) throw new Error("Proxy responded " + res.status);
+  const data = await res.json();
+  if(!data || !data.root_cause) throw new Error("Proxy returned an unexpected shape");
+  return data;
+}
+
+async function callClaudeDirect(symptom, cliOutput, category){
+  const userContent = `CASE ID: LIVE-${Date.now()}\nCATEGORY: ${category || "Unspecified"}\nSYMPTOM: ${symptom}\nTOPOLOGY NOTE: (not provided — client-submitted live case)\nSHOW OUTPUT:\n${cliOutput}\n\nDiagnose this case following your system instructions. Return only the JSON object.`;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      model:"claude-sonnet-4-6",
+      max_tokens:1000,
+      system: SYSTEM_PROMPT,
+      messages:[...FEWSHOT, {role:"user", content:userContent}]
+    })
+  });
+  if(!res.ok) throw new Error("API responded " + res.status);
+  const data = await res.json();
+  const block = (data.content||[]).find(b=>b.type==="text");
+  if(!block) throw new Error("No text content in response");
+  let clean = block.text.trim();
+  clean = clean.replace(/^```json/i,"").replace(/^```/,"").replace(/```$/,"").trim();
+  return JSON.parse(clean);
+}
+
+async function callAI(symptom, cliOutput, category){
+  if(PROXY_URL){
+    try{ return await callViaProxy(symptom, cliOutput, category); }
+    catch(err){ console.warn("Backend proxy failed, falling back to direct Claude call:", err.message); }
+  }
+  return await callClaudeDirect(symptom, cliOutput, category);
+}
+
+/* ---------- Backend settings panel ---------- */
+const backendToggle = document.getElementById("backendToggle");
+const backendPanel = document.getElementById("backendPanel");
+const backendUrlInput = document.getElementById("backendUrlInput");
+const backendStatusLine = document.getElementById("backendStatusLine");
+const backendDot = document.getElementById("backendDot");
+const backendLabel = document.getElementById("backendLabel");
+
+function updateBackendStatusUI(){
+  if(PROXY_URL){
+    backendDot.className = "backend-dot connected";
+    backendLabel.textContent = "Backend connected";
+    backendUrlInput.value = PROXY_URL;
+    backendStatusLine.className = "backend-status-line ok";
+    backendStatusLine.textContent = "Configured — diagnoses will be sent to your backend first.";
+  } else {
+    backendDot.className = "backend-dot";
+    backendLabel.textContent = "Backend";
+    backendStatusLine.className = "backend-status-line";
+    backendStatusLine.textContent = "Not configured — live diagnosis will only work while this page is open inside Claude.";
+  }
+}
+
+backendToggle.addEventListener("click", ()=>{ backendPanel.hidden = !backendPanel.hidden; });
+
+document.getElementById("backendSaveBtn").addEventListener("click", async ()=>{
+  const url = backendUrlInput.value.trim();
+  if(!url){ backendStatusLine.className = "backend-status-line bad"; backendStatusLine.textContent = "Enter a URL first."; return; }
+  backendStatusLine.className = "backend-status-line";
+  backendStatusLine.textContent = "Testing connection…";
+  try{
+    const res = await fetch(url, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ symptom:"Connection test", cliOutput:"connection test — no real CLI output", category:"Other" })
+    });
+    if(!res.ok) throw new Error("responded " + res.status);
+    const data = await res.json();
+    if(!data || !data.root_cause) throw new Error("unexpected response shape");
+    PROXY_URL = url;
+    await storageSet('netsage_backend_url', url);
+    backendDot.className = "backend-dot connected";
+    backendLabel.textContent = "Backend connected";
+    backendStatusLine.className = "backend-status-line ok";
+    backendStatusLine.textContent = "Connected. Saved — this page will use your backend from now on.";
+    showToast("Backend connected");
+  }catch(err){
+    backendDot.className = "backend-dot error";
+    backendStatusLine.className = "backend-status-line bad";
+    backendStatusLine.textContent = "Could not reach that URL (" + err.message + "). Check it's deployed, the route is /api/diagnose, and CORS is enabled.";
+  }
+});
+
+document.getElementById("backendClearBtn").addEventListener("click", async ()=>{
+  PROXY_URL = "";
+  backendUrlInput.value = "";
+  try{ await storageSet('netsage_backend_url', ''); }catch(e){ console.error(e); }
+  updateBackendStatusUI();
+  showToast("Backend URL cleared");
+});
+
+function guessLayerFromRule(rule){ return rule ? rule.layer : "—"; }
+
+/* ============================================================
+   STATE + STORAGE
+   Works two ways: window.storage (Claude's own environment) when present,
+   otherwise plain browser localStorage — so the same file works standalone.
+   ============================================================ */
+let caseLog = [];
+let currentDiagnosis = null;
+let charts = {};
+const SEED_VERSION = "v5-32cases-full";
+
+const hasClaudeStorage = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
+
+async function storageGet(key){
+  if(hasClaudeStorage){
+    const res = await window.storage.get(key);
+    return res.value;
+  }
+  const v = localStorage.getItem(key);
+  if(v === null) throw new Error("not found: " + key);
+  return v;
+}
+async function storageSet(key, value){
+  if(hasClaudeStorage){ return window.storage.set(key, value); }
+  localStorage.setItem(key, value);
+}
+
+async function initCaseLog(){
+  let storedVersion = null;
+  try{ storedVersion = await storageGet('netsage_seed_version'); }catch(e){ storedVersion = null; }
+
+  if(storedVersion === SEED_VERSION){
+    try{
+      const raw = await storageGet('netsage_case_log');
+      caseLog = JSON.parse(raw);
+      if(!Array.isArray(caseLog) || !caseLog.length) throw new Error("empty");
+    }catch(e){
+      caseLog = SEED_DATA.slice();
+    }
+  } else {
+    // Seed dataset changed since this browser last stored a case log —
+    // refresh instead of silently serving a stale (e.g. old 32-case) log.
+    caseLog = SEED_DATA.slice();
+  }
+  try{
+    await storageSet('netsage_case_log', JSON.stringify(caseLog));
+    await storageSet('netsage_seed_version', SEED_VERSION);
+  }catch(e2){ console.error("storage save failed", e2); }
+
+  try{ const saved = await storageGet('netsage_backend_url'); if(saved){ PROXY_URL = saved; } }catch(e){ /* none saved yet */ }
+  updateBackendStatusUI();
+
+  renderExplorer(); renderDashboard();
+}
+async function saveCaseLog(){
+  try{ await storageSet('netsage_case_log', JSON.stringify(caseLog)); }
+  catch(e){ console.error("storage save failed", e); }
+}
+function nextCaseId(){
+  let max = 0;
+  caseLog.forEach(c=>{
+    const m = /CASE-(\d+)/.exec(c.id||"");
+    if(m) max = Math.max(max, parseInt(m[1],10));
+  });
+  return "CASE-" + String(max+1).padStart(2,'0');
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+document.querySelectorAll(".tab-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".tab-panel").forEach(p=>p.hidden = true);
+    document.getElementById("panel-"+btn.dataset.tab).hidden = false;
+  });
+});
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById("toast");
+  document.getElementById("toastText").textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("show"), 3600);
+}
+
+/* ============================================================
+   DIAGNOSE TAB LOGIC
+   ============================================================ */
+const symptomInput = document.getElementById("symptomInput");
+const cliInput = document.getElementById("cliInput");
+const categorySelect = document.getElementById("categorySelect");
+const runBtn = document.getElementById("runBtn");
+const emptyState = document.getElementById("emptyState");
+const resultsContent = document.getElementById("resultsContent");
+
+function renderRuleResult(rule){
+  const box = document.createElement("div");
+  box.className = "result-block";
+  if(rule){
+    box.innerHTML = `<h4>1 · Rule Engine Analysis</h4>
+      <div class="rule-box sev-${rule.severity}">
+        <span class="code">[${rule.code}]</span>
+        <p>${rule.message}</p>
+      </div>`;
+  } else {
+    box.innerHTML = `<h4>1 · Rule Engine Analysis</h4>
+      <div class="rule-box none">No deterministic rule matched this output — relying on the AI pass below.</div>`;
+  }
+  return box;
+}
+
+function renderAIBlock(ai, fallbackErr){
+  const box = document.createElement("div");
+  box.className = "result-block";
+  const confClass = "conf-" + (ai.confidence || "Medium");
+  box.innerHTML = `
+    <h4>2 · ${fallbackErr ? "Rule-Engine Fallback (Live AI unavailable)" : "Live AI Structural Diagnosis"}</h4>
+    <div class="badge-row">
+      <div class="badge-item"><div class="lbl">OSI Layer</div><div class="val"><span class="layer-chip">${ai.osi_layer}</span></div></div>
+      <div class="badge-item"><div class="lbl">AI Confidence</div><div class="val ${confClass}">${ai.confidence}</div></div>
+    </div>
+    <p class="root-cause-text"><strong>Root cause:</strong> ${ai.root_cause}</p>
+    <h4 style="margin-top:14px;">Evidence</h4>
+    <div class="evidence-box">${ai.evidence}</div>
+    <h4>Verification command</h4>
+    <div class="cmd-box">${ai.next_command}</div>
+    <h4 style="margin-top:14px;">Suggested fix steps</h4>
+    <div class="fix-box">${ai.fix_steps}</div>
+    ${fallbackErr ? `<p class="fallback-note">Live AI call failed or is unavailable in this context (${fallbackErr}). Showing a rule-engine-based fallback so review can still proceed — use Manual Override to record your own analysis.</p>` : ""}
+  `;
+  return box;
+}
+
+function renderDecisionSection(){
+  const box = document.createElement("div");
+  box.className = "decision-section";
+  box.innerHTML = `
+    <h4>3 · Human-in-the-Loop Decision</h4>
+    <div class="decision-btns">
+      <button class="dbtn accept" id="acceptBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Accept Fix</button>
+      <button class="dbtn reject" id="rejectBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>Reject &amp; Retry</button>
+      <button class="dbtn override" id="overrideBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>Manual Override</button>
+    </div>
+    <div id="subformArea"></div>
+  `;
+  return box;
+}
+
+function finalizeCase(action, details){
+  const id = nextCaseId();
+  const entry = {
+    id, timestamp: new Date().toISOString(),
+    category: currentDiagnosis.category || "Unspecified",
+    symptom: currentDiagnosis.symptom,
+    cli_output: currentDiagnosis.cli,
+    rule_finding: currentDiagnosis.rule ? `[${currentDiagnosis.rule.code}] ${currentDiagnosis.rule.message}` : null,
+    ai_root_cause: currentDiagnosis.ai.root_cause,
+    ai_osi_layer: currentDiagnosis.ai.osi_layer,
+    ai_confidence: currentDiagnosis.ai.confidence,
+    ai_evidence: currentDiagnosis.ai.evidence,
+    ai_next_command: currentDiagnosis.ai.next_command,
+    ai_fix_steps: currentDiagnosis.ai.fix_steps,
+    human_action: action, human_details: details, source: currentDiagnosis.source
+  };
+  caseLog.push(entry);
+  saveCaseLog();
+  renderExplorer(); renderDashboard();
+  showToast(`${id} logged as ${action}`);
+  resetDiagnoseForm();
+}
+
+function wireDecisionButtons(){
+  document.getElementById("acceptBtn").onclick = ()=>{
+    finalizeCase("Accepted", `Fix applied and verified: ${currentDiagnosis.ai.fix_steps}`);
+  };
+  document.getElementById("rejectBtn").onclick = ()=>{
+    const area = document.getElementById("subformArea");
+    area.innerHTML = `<div class="subform">
+      <label class="field-label">Why was this rejected?</label>
+      <textarea id="rejectReason" placeholder="e.g. Root cause doesn't match the topology — the real issue was..."></textarea>
+      <div class="subform-actions">
+        <button class="cancel" id="rejectCancel">Cancel</button>
+        <button class="confirm" id="rejectConfirm">Log rejection</button>
+      </div>
+    </div>`;
+    document.getElementById("rejectCancel").onclick = ()=>{ area.innerHTML=""; };
+    document.getElementById("rejectConfirm").onclick = ()=>{
+      const reason = document.getElementById("rejectReason").value.trim() || "Rejected by reviewer — no reason given.";
+      finalizeCase("Rejected", reason);
+    };
+  };
+  document.getElementById("overrideBtn").onclick = ()=>{
+    const area = document.getElementById("subformArea");
+    area.innerHTML = `<div class="subform">
+      <label class="field-label">Corrected root cause</label>
+      <textarea id="ovCause" style="min-height:60px;">${currentDiagnosis.ai.root_cause}</textarea>
+      <label class="field-label" style="margin-top:10px;">Corrected fix steps</label>
+      <textarea id="ovFix" style="min-height:60px;">${currentDiagnosis.ai.fix_steps}</textarea>
+      <div class="subform-actions">
+        <button class="cancel" id="ovCancel">Cancel</button>
+        <button class="confirm" id="ovConfirm">Save override</button>
+      </div>
+    </div>`;
+    document.getElementById("ovCancel").onclick = ()=>{ area.innerHTML=""; };
+    document.getElementById("ovConfirm").onclick = ()=>{
+      const cause = document.getElementById("ovCause").value.trim();
+      const fix = document.getElementById("ovFix").value.trim();
+      currentDiagnosis.ai.root_cause = cause;
+      finalizeCase("Manual Override", `Reviewer corrected fix: ${fix}`);
+    };
+  };
+}
+
+function resetDiagnoseForm(){
+  symptomInput.value = ""; cliInput.value = ""; categorySelect.value = "";
+  symptomInput.classList.remove("invalid"); cliInput.classList.remove("invalid");
+  emptyState.style.display = "flex";
+  resultsContent.style.display = "none";
+  resultsContent.innerHTML = "";
+  currentDiagnosis = null;
+}
+
+async function handleRunDiagnosis(){
+  const symptom = symptomInput.value.trim();
+  const cli = cliInput.value.trim();
+  symptomInput.classList.toggle("invalid", !symptom);
+  cliInput.classList.toggle("invalid", !cli);
+  if(!symptom || !cli) return;
+
+  runBtn.disabled = true;
+  emptyState.style.display = "none";
+  resultsContent.style.display = "block";
+  resultsContent.innerHTML = "";
+
+  const rule = runRuleEngine(cli);
+  resultsContent.appendChild(renderRuleResult(rule));
+
+  const loadingBlock = document.createElement("div");
+  loadingBlock.className = "result-block";
+  loadingBlock.innerHTML = `<h4>2 · Live AI Structural Diagnosis</h4><div class="ai-loading"><span class="spinner"></span>Contacting NetSage AI…</div>`;
+  resultsContent.appendChild(loadingBlock);
+
+  let ai, fallbackErr = null;
+  try{
+    ai = await callAI(symptom, cli, categorySelect.value);
+  }catch(err){
+    fallbackErr = err.message || "unknown error";
+    ai = rule ? {
+      root_cause: rule.message,
+      osi_layer: guessLayerFromRule(rule),
+      confidence: "Medium",
+      evidence: cli.length > 300 ? cli.slice(0,300)+"…" : cli,
+      next_command: rule.command,
+      fix_steps: "Review the rule-engine finding above and confirm manually — use Manual Override below to record your own fix."
+    } : {
+      root_cause: "No deterministic rule matched, and live AI diagnosis is unavailable in this context.",
+      osi_layer: "—", confidence: "Low",
+      evidence: "—", next_command: "show running-config",
+      fix_steps: "Use Manual Override below to record your own diagnosis for this case."
+    };
+  }
+
+  resultsContent.removeChild(loadingBlock);
+  resultsContent.appendChild(renderAIBlock(ai, fallbackErr));
+  resultsContent.appendChild(renderDecisionSection());
+  wireDecisionButtons();
+
+  currentDiagnosis = { symptom, cli, category: categorySelect.value, rule, ai, source: fallbackErr ? "fallback" : "live-ai" };
+  runBtn.disabled = false;
+}
+runBtn.addEventListener("click", handleRunDiagnosis);
+
+/* ============================================================
+   EXPLORER TAB
+   ============================================================ */
+const CATEGORY_COLOR = {
+  VLAN:"#2DD4BF", Gateway:"#60A5FA", DHCP:"#C084FC", DNS:"#FBBF24",
+  Routing:"#FB923C", ACL:"#FB7185", NAT:"#22D3EE", Wireless:"#A3E635",
+  "Spanning Tree":"#7DD3FC", "Port Security":"#F472B6", Other:"#C7BEEE", Unspecified:"#8E85C4"
+};
+function catColor(c){ return CATEGORY_COLOR[c] || "#8E85C4"; }
+function chipClassForAction(a){ return "chip-" + a.replace(/\s+/g,"-"); }
+
+const explorerSearch = document.getElementById("explorerSearch");
+const explorerCatFilter = document.getElementById("explorerCatFilter");
+const explorerStatusFilter = document.getElementById("explorerStatusFilter");
+let explorerFiltersBuilt = false;
+
+function buildExplorerFilters(){
+  if(explorerFiltersBuilt) return;
+  const cats = [...new Set(caseLog.map(c=>c.category))].sort();
+  cats.forEach(c=>explorerCatFilter.insertAdjacentHTML("beforeend", `<option value="${c}">${c}</option>`));
+  explorerFiltersBuilt = true;
+}
+
+let openExplorerId = null;
+let openAuditId = null;
+
+function renderExplorer(){
+  buildExplorerFilters();
+  const sub = document.getElementById("explorerSub");
+  if(sub) sub.textContent = `Every case — the ${SEED_DATA.length} seeded reference cases plus anything you've diagnosed live — in one searchable table.`;
+  const q = explorerSearch.value.trim().toLowerCase();
+  const rows = caseLog.filter(c=>
+    (!explorerCatFilter.value || c.category === explorerCatFilter.value) &&
+    (!explorerStatusFilter.value || c.human_action === explorerStatusFilter.value) &&
+    (!q || c.id.toLowerCase().includes(q) || c.symptom.toLowerCase().includes(q))
+  ).slice().reverse();
+
+  document.getElementById("explorerCount").textContent = `${rows.length} / ${caseLog.length} cases`;
+  const body = document.getElementById("explorerBody");
+  body.innerHTML = "";
+  rows.forEach(c=>{
+    const tr = document.createElement("tr");
+    tr.className = "case-row";
+    tr.innerHTML = `
+      <td class="cid">${c.id}${c.source==="live-ai"||c.source==="fallback" ? '<span class="src-live">LIVE</span>' : ""}</td>
+      <td><span class="chip chip-cat" style="color:${catColor(c.category)};border-color:${catColor(c.category)}55">${c.category}</span></td>
+      <td class="trunc" title="${escapeAttr(c.symptom)}">${c.symptom}</td>
+      <td class="trunc" title="${escapeAttr(c.ai_root_cause)}">${c.ai_root_cause}</td>
+      <td><span class="chip ${chipClassForAction(c.human_action)}">${c.human_action}</span></td>
+      <td class="trunc" title="${escapeAttr(c.human_details)}">${c.human_details}</td>
+    `;
+    tr.addEventListener("click", ()=>{
+      openExplorerId = openExplorerId === c.id ? null : c.id;
+      renderExplorer();
+    });
+    body.appendChild(tr);
+
+    if(openExplorerId === c.id){
+      const detail = document.createElement("tr");
+      detail.className = "detail-row";
+      detail.innerHTML = `<td colspan="6"><div class="detail-panel">
+        <div class="block">
+          <h5>Full symptom</h5>
+          <p>${c.symptom}</p>
+          <h5>AI root cause (confidence: ${c.ai_confidence})</h5>
+          <p>${c.ai_root_cause}</p>
+          <h5>Evidence cited</h5>
+          <div class="evidence">${c.ai_evidence}</div>
+          <h5>Verification command</h5>
+          <div class="cmd">${c.ai_next_command}</div>
+        </div>
+        <div class="block">
+          <h5>Review verdict</h5>
+          <p><span class="chip ${chipClassForAction(c.human_action)}">${c.human_action}</span></p>
+          <h5>Reviewer notes / fix applied</h5>
+          <p class="notes">${c.human_details}</p>
+          ${c.rule_finding ? `<h5>Rule engine finding</h5><p class="notes">${c.rule_finding}</p>` : ""}
+        </div>
+      </div></td>`;
+      body.appendChild(detail);
+    }
+  });
+}
+[explorerSearch, explorerCatFilter, explorerStatusFilter].forEach(el=>el.addEventListener("input", renderExplorer));
+
+function escapeAttr(s){ return (s||"").toString().replace(/"/g,"&quot;"); }
+
+document.getElementById("resetDataBtn").addEventListener("click", async ()=>{
+  if(!confirm(`Reset the case log back to the ${SEED_DATA.length} seeded reference cases? Any live cases you've added will be removed.`)) return;
+  caseLog = SEED_DATA.slice();
+  await saveCaseLog();
+  try{ await storageSet('netsage_seed_version', SEED_VERSION); }catch(e){ console.error(e); }
+  renderExplorer(); renderDashboard();
+  showToast("Case log reset to seed data");
+});
+
+function exportCSV(){
+  const headers = ["id","timestamp","category","symptom","human_action","ai_root_cause","ai_osi_layer","ai_confidence","ai_next_command","human_details","source"];
+  const esc = v => { v = (v??"").toString().replace(/"/g,'""'); return /[",\n]/.test(v) ? `"${v}"` : v; };
+  const lines = [headers.join(","), ...caseLog.map(c=>headers.map(h=>esc(c[h])).join(","))];
+  const blob = new Blob([lines.join("\n")], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "netsage_case_log.csv"; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+document.getElementById("exportCsvBtn").addEventListener("click", exportCSV);
+document.getElementById("exportCsvBtn2").addEventListener("click", exportCSV);
+
+/* ============================================================
+   DASHBOARD TAB
+   ============================================================ */
+const STATUS_COLOR = {Accepted:"#2DD4BF", "Manual Override":"#FBBF24", Rejected:"#FB7185"};
+
+function animateCount(el, target){
+  const start = 0;
+  const duration = 700;
+  const startTime = performance.now();
+  function tick(now){
+    const p = Math.min(1, (now - startTime) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(start + (target - start) * eased);
+    if(p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function renderDashboard(){
+  const total = caseLog.length;
+  const accepted = caseLog.filter(c=>c.human_action==="Accepted").length;
+  const overrides = caseLog.filter(c=>c.human_action==="Manual Override").length;
+  const rejected = caseLog.filter(c=>c.human_action==="Rejected").length;
+
+  document.getElementById("statGrid").innerHTML = `
+    <div class="panel stat-card c-total"><div class="lbl">Total diagnosed</div><div class="num" data-target="${total}">0</div></div>
+    <div class="panel stat-card c-accept"><div class="lbl">Human accepted</div><div class="num" data-target="${accepted}">0</div></div>
+    <div class="panel stat-card c-override"><div class="lbl">Manual overrides</div><div class="num" data-target="${overrides}">0</div></div>
+    <div class="panel stat-card c-reject"><div class="lbl">Rejected fixes</div><div class="num" data-target="${rejected}">0</div></div>
+  `;
+  document.querySelectorAll('#statGrid .num').forEach(el=>animateCount(el, parseInt(el.dataset.target,10)));
+
+  const byCat = {};
+  caseLog.forEach(c=>{ byCat[c.category] = (byCat[c.category]||0)+1; });
+  const maxCat = Math.max(...Object.values(byCat), 1);
+  document.getElementById("dashCatBars").innerHTML = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,n])=>`
+    <div class="cat-bar-row">
+      <div class="cname">${cat}</div>
+      <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(n/maxCat)*100}%;background:${catColor(cat)}"></div></div>
+      <div class="cnum">${n}</div>
+    </div>
+  `).join("");
+
+  const statusLabels = ["Accepted","Manual Override","Rejected"];
+  const statusData = [accepted, overrides, rejected];
+  if(charts.donut) charts.donut.destroy();
+  charts.donut = new Chart(document.getElementById("statusDonut"), {
+    type:"doughnut",
+    data:{labels:statusLabels, datasets:[{data:statusData, backgroundColor:statusLabels.map(s=>STATUS_COLOR[s]), borderColor:"#241C50", borderWidth:3}]},
+    options:{cutout:"68%", plugins:{legend:{display:false}}}
+  });
+  document.getElementById("statusLegend").innerHTML = statusLabels.map((s,i)=>`
+    <div class="item"><span class="sw" style="background:${STATUS_COLOR[s]}"></span>${s}<span class="n">${statusData[i]}</span></div>
+  `).join("");
+
+  const auditBody = document.getElementById("auditBody");
+  auditBody.innerHTML = "";
+  caseLog.slice().reverse().forEach(c=>{
+    const tr = document.createElement("tr");
+    tr.className = "case-row";
+    tr.innerHTML = `
+      <td class="cid">${c.id}</td>
+      <td class="trunc" title="${escapeAttr(c.symptom)}">${c.symptom}</td>
+      <td class="trunc" title="${escapeAttr(c.ai_root_cause)}">${c.ai_root_cause}</td>
+      <td><span class="chip ${chipClassForAction(c.human_action)}">${c.human_action}</span></td>
+      <td class="trunc" title="${escapeAttr(c.human_details)}">${c.human_details}</td>
+    `;
+    tr.addEventListener("click", ()=>{
+      openAuditId = openAuditId === c.id ? null : c.id;
+      renderDashboard();
+    });
+    auditBody.appendChild(tr);
+
+    if(openAuditId === c.id){
+      const detail = document.createElement("tr");
+      detail.className = "detail-row";
+      detail.innerHTML = `<td colspan="5"><div class="detail-panel">
+        <div class="block">
+          <h5>Full symptom</h5>
+          <p>${c.symptom}</p>
+          <h5>AI root cause (confidence: ${c.ai_confidence})</h5>
+          <p>${c.ai_root_cause}</p>
+          <h5>Evidence cited</h5>
+          <div class="evidence">${c.ai_evidence}</div>
+          <h5>Verification command</h5>
+          <div class="cmd">${c.ai_next_command}</div>
+        </div>
+        <div class="block">
+          <h5>Review verdict</h5>
+          <p><span class="chip ${chipClassForAction(c.human_action)}">${c.human_action}</span></p>
+          <h5>Reviewer notes / fix applied</h5>
+          <p class="notes">${c.human_details}</p>
+          ${c.rule_finding ? `<h5>Rule engine finding</h5><p class="notes">${c.rule_finding}</p>` : ""}
+        </div>
+      </div></td>`;
+      auditBody.appendChild(detail);
+    }
+  });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+initCaseLog();
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+case_id,review_status,matches_expected,reviewer_notes
+C001,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C002,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C003,Edited,No,AI focused on the allowed-VLAN list and missed the explicit CDP native-VLAN mismatch warning in the evidence. Reviewer corrected root cause to 'native VLAN mismatch' and pointed the fix at matching native VLAN on both trunk ends.
+C004,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C005,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C006,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C007,Edited,No,"PC3's gateway was statically set, not DHCP-assigned, so the AI's DHCP theory was never testable against the evidence. Reviewer corrected the root cause to a manual gateway typo (.254 vs the router's real .1) after checking PC3's config mode."
+C008,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C009,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C010,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C011,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C012,Edited,No,"AI pattern-matched this to the more common 'pool exhausted' case (C009) instead of reading the actual excluded-address range in the evidence. Reviewer rejected the pool-exhaustion theory and corrected it to a missing gateway exclusion, which is a more serious IP-conflict risk, not just a capacity issue."
+C013,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C014,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C015,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C016,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C017,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C018,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C019,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C020,Edited,No,"A route to 172.16.20.0/24 does exist in the table, so 'missing route' was not accurate. Reviewer corrected the diagnosis to a recursive routing failure: the route's next-hop is itself unreachable, so it never resolves to an exit interface."
+C021,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C022,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C023,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C024,Rejected,No,"No NAT is involved in this topology at all; the AI pattern-matched 'replies not coming back' to a NAT issue from a similar past case. Reviewer rejected this and identified the real cause in ACL 140, which lacks a permit for established/return traffic."
+C025,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C026,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C027,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C028,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C029,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C030,Rejected,No,"This is a security-relevant misconfiguration (guest traffic reaching internal servers), not a performance issue, and the AI's channel-overlap theory does not explain guest devices reaching internal file servers at all. Reviewer rejected the AI output outright and escalated as a Responsible-AI flag: an AI system should not be trusted to self-certify security-boundary issues without a human check, since a wrong 'root cause' here could leave a real security gap unresolved."
+C031,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.
+C032,Accepted,Yes,AI diagnosis matched the confirmed root cause; evidence correctly cited.

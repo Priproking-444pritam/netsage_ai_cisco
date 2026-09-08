@@ -1,0 +1,27 @@
+========================================================================
+NetSage AI — Rule Checker Report
+========================================================================
+[1] (Critical) interface_down
+     R1:Gi0/0.20 is administratively down.
+[2] (High) duplicate_ip
+     IP 192.168.10.1 is claimed by more than one device: PC5, R1:Gi0/0.10
+[3] (High) missing_vlan
+     R1:Gi0/0.40 implies VLAN 40, but VLAN 40 does not exist on SW1.
+[4] (High) missing_route
+     No route found for expected network 192.168.20.0/24 — check for a missing static/dynamic route.
+[5] (High) missing_route
+     No route found for expected network 172.16.0.0/24 — check for a missing static/dynamic route.
+[6] (Medium) wrong_mask
+     PC6 in VLAN 20 uses mask 255.255.255.255, which differs from the common mask 255.255.255.0 used by its peers.
+[7] (Medium) gateway_mismatch
+     PC3 is configured with gateway 192.168.30.254, but the router's real interface in 192.168.30.0/24 is 192.168.30.1.
+------------------------------------------------------------------------
+Summary by check type: {
+  "interface_down": 1,
+  "duplicate_ip": 1,
+  "missing_vlan": 1,
+  "missing_route": 2,
+  "wrong_mask": 1,
+  "gateway_mismatch": 1
+}
+Total findings: 7
